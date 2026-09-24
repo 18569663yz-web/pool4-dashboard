@@ -74,11 +74,13 @@ node scripts/retag-data-strings.mjs          # lib/contracts.js 的中文 → �
 它们由 `.github/workflows/refresh-snapshots.yml` **每 2 小时**刷新一次（cron `17 */2 * * *`，避开整点；
 也支持 `workflow_dispatch` 手动触发）。
 
-**为什么不是每小时**：托管在 Cloudflare Pages 免费版，它允许 **500 次 build/月**，并且**每次向仓库
-push 都算一次**。每小时一次 ≈ 730 次/月，会在月中静默停止部署；每 2 小时一次 = 360 次/月，留在额度内。
-**部署频率 = 数据新鲜度，这是同一个旋钮** —— 哪天要回到每小时，必须同时换方案（Pages Pro、Direct
-Upload 或别的托管），不能只改 cron。页面过期横幅的阈值是 3 小时，所以 2 小时的节奏下它只在**某次刷新
-真的失败时**才出现，而不是被排程本身触发。
+**为什么可以每小时**：托管在 Cloudflare **Workers**（不是 Pages），两者的免费额度计费方式不同 ——
+Pages 按**构建次数**（500 次/月，每小时一次 ≈ 730 次会超），Workers Builds 按**构建分钟**
+（3,000 分钟/月）。我们一次构建（复制文件 + `wrangler deploy` 上传 29 个文件）约 40 秒，
+每小时一次 ≈ 500 分钟/月，只用掉六分之一。**所以频率的约束解除了。**
+部署配置在仓库根目录的 `wrangler.jsonc`（`assets.directory = ./dist`，**没有 `main` 入口** —— 纯静态，
+Worker 只负责把 `dist/` 从边缘发出去）。页面过期横幅的阈值是 3 小时，所以 1 小时的节奏下它只在
+**某次刷新真的失败时**才出现。
 
 本地跑的是**同一套**流程：
 

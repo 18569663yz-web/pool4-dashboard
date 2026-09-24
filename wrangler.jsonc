@@ -1,0 +1,15 @@
+{
+  // Cloudflare Workers with static assets.
+  //
+  // The Workers Builds Git integration runs the build command from the dashboard (which
+  // assembles ./dist) and then `npx wrangler deploy`, which reads this file to find it.
+  //
+  // No `main` entry point: this is a pure static site, so the Worker exists only to serve
+  // ./dist from Cloudflare's edge. That is also why there is no build step in the repository
+  // itself — index.html and lib/ are already the shipped artefacts.
+  "name": "pool4-dashboard",
+  "compatibility_date": "2026-09-24",
+  "assets": {
+    "directory": "./dist"
+  }
+}

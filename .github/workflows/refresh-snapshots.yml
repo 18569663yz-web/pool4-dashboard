@@ -14,13 +14,12 @@ on:
   schedule:
     # Deliberately not on the hour: every cron-driven project on GitHub fires at :00.
     #
-    # Every 2 hours rather than every hour. Cloudflare Pages' free plan allows 500 builds a
-    # month and counts one for every push to the connected repository, so the hourly cadence
-    # this job was written for (~730 a month) would stop deploying partway through the month
-    # with no obvious cause. At 12 runs a day (360 a month) the snapshots stay inside the free
-    # allowance, and the page's 3-hour staleness banner still appears only when a refresh
-    # actually fails — not as a side effect of the schedule.
-    - cron: "17 */2 * * *"
+    # Hourly is affordable because of where this is hosted. Cloudflare Pages' free plan caps
+    # *builds per month* (500), which an hourly job would blow through at ~730. Cloudflare
+    # Workers' free plan caps *build minutes per month* (3,000) instead, and one of these runs
+    # builds in well under a minute — so hourly costs roughly 500 of the 3,000 minutes and the
+    # snapshots stay at most an hour old.
+    - cron: "17 * * * *"
   workflow_dispatch: # manual trigger, for testing and for the first run
 
 permissions:
