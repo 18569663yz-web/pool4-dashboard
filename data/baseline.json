@@ -1,9 +1,9 @@
 {
   "ok": true,
   "chainId": 1,
-  "blockNumber": 26046467,
-  "blockTimestamp": 1790242571,
-  "fetchedAt": 1790242581777,
+  "blockNumber": 26046508,
+  "blockTimestamp": 1790243075,
+  "fetchedAt": 1790243082022,
   "endpoint": "https://ethereum-rpc.publicnode.com",
   "values": {
     "hook.tokensInPool": "10007785293341536566395",
@@ -182,9 +182,9 @@
   },
   "errors": {},
   "base": {
-    "blockNumber": 51726617,
+    "blockNumber": 51726867,
     "values": {
-      "base.fp.totalSupply": "7098777656474941052701992",
+      "base.fp.totalSupply": "7098777396504311655624590",
       "base.fp.decimals": "18",
       "base.fp.symbol": "Fren Pet",
       "base.fp.adapterBalance": "3799686761311000000000000",
@@ -200,7 +200,7 @@
     {
       "url": "https://ethereum-rpc.publicnode.com",
       "ok": true,
-      "ms": 94
+      "ms": 284
     },
     {
       "url": "https://eth.drpc.org",

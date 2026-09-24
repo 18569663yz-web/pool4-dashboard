@@ -1,9 +1,9 @@
 {
-  "scannedAt": "2026-09-24T09:36:16.923Z",
+  "scannedAt": "2026-09-24T09:44:37.136Z",
   "hours": 24,
-  "fromBlock": 26039263,
-  "toBlock": 26046463,
-  "chainWideSwaps": 129802,
+  "fromBlock": 26039305,
+  "toBlock": 26046505,
+  "chainWideSwaps": 130208,
   "totalEthAbs": "242200146690887908512",
   "totalSwaps": 549,
   "hookShareEthPct": 4.69,
