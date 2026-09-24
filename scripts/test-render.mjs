@@ -49,6 +49,9 @@ class El {
   getAttribute(k) {
     return (this.attrs || {})[k] ?? null;
   }
+  removeAttribute(k) {
+    if (this.attrs) delete this.attrs[k];
+  }
   appendChild() {}
 }
 const els = new Map(ids.map((id) => [id, new El(id)]));
@@ -88,6 +91,11 @@ globalThis.localStorage = {
   removeItem: (k) => store.delete(k),
 };
 globalThis.window = globalThis;
+// app.js registers listeners on window (hashchange, for the collapsible groups). A browser
+// has those; Node does not, and the TypeError at module scope used to kill this suite
+// silently — see the sentinel below.
+globalThis.addEventListener = () => {};
+globalThis.removeEventListener = () => {};
 
 // fetch: serve local files, and let http(s) through to the real network
 const realFetch = globalThis.fetch;
@@ -116,11 +124,30 @@ globalThis.clearInterval = () => {};
 
 /* ---------- run ---------- */
 console.log("headless render");
+
+/* The suite must not be able to report success without running. If app.js throws at module
+ * scope, the await below never resolves, the event loop drains, and Node exits 0 with one
+ * line of output — which is exactly what happened when a `window.addEventListener` call
+ * entered app.js: `npm test` went green while this file ran zero assertions. */
+let finished = false;
+process.on("exit", (code) => {
+  if (!finished && code === 0) {
+    process.exitCode = 1;
+    console.error("\nFATAL: the suite exited before it finished — app.js most likely threw while loading");
+  }
+});
+
 const errors = [];
 process.on("unhandledRejection", (e) => errors.push(String(e && e.message ? e.message : e)));
 process.on("uncaughtException", (e) => errors.push(String(e && e.message ? e.message : e)));
 
-await import("../assets/app.js");
+try {
+  await import("../assets/app.js");
+} catch (e) {
+  console.error(`\nFATAL: app.js threw while loading: ${e && e.message}`);
+  finished = true;
+  process.exit(1);
+}
 
 // boot() is async; give the network round-trips time
 await new Promise((r) => setTimeout(r, 25000));
@@ -451,5 +478,6 @@ if (banner && /项读数失败/.test(banner)) {
 // process.exit() drops whatever stdout has not been flushed yet, and on Windows a
 // piped stdout flushes asynchronously — the suite would print "N passed, 0 failed" to
 // a terminal but only its first line to a log file. Flush explicitly, then exit.
+finished = true;
 await new Promise((resolve) => process.stdout.write("", resolve));
 process.exit(fail === 0 ? 0 : 1);

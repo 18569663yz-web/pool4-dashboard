@@ -16,6 +16,7 @@
     "i18n:merge": "node scripts/merge-i18n.mjs",
     "i18n:check": "node scripts/check-html-i18n.mjs && node scripts/check-terminology.mjs",
     "verify:snapshots": "node scripts/verify-snapshots.mjs",
+    "verify:live": "node scripts/verify-live-site.mjs",
     "check:derived": "node scripts/check-derived.mjs",
     "check:summaries": "node scripts/check-summaries.mjs",
     "fixture": "node scripts/make-base-fixture.mjs",

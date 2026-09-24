@@ -101,7 +101,23 @@
     "html.official.explorer": "浏览器",
     "html.official.stake": "质押",
     "html.footer.readonly": "<b>只读仪表盘。</b>不连接钱包、不签名、不发交易。全部数据来自 <code>eth_call</code> / <code>eth_getBlockByNumber</code> / <code>eth_getTransactionCount</code> / <code>eth_getBalance</code>，通过多个公共 RPC 冗余读取。",
-    "html.footer.disclaimer": "独立观察工具，与 IdentityMD / POOL4 项目方无关，未经其审阅。不构成投资建议。"
+    "html.footer.disclaimer": "独立观察工具，与 IdentityMD / POOL4 项目方无关，未经其审阅。不构成投资建议。",
+    "html.theme.dark": "深色",
+    "html.theme.light": "浅色",
+    "html.theme.toDark": "切换到深色主题",
+    "html.theme.toLight": "切换到浅色主题",
+    "html.band.expand": "展开",
+    "html.band.collapse": "收起",
+    "html.howto.summary": "教程：怎么给项目方发一条链上留言",
+    "html.howto.intro": "项目方没有 Twitter，官网文档也还没上线——<b>他只读这个地址收到的链上留言</b>。任何人都能发，不需要许可，也不需要持有 IMD。下面是完整步骤。",
+    "html.howto.step1": "<b>先写好要说的话。</b>只能发纯文本（UTF-8），会被永久、公开地记在以太坊上。<b>不要写任何隐私信息</b>——私钥、助记词、邮箱、真实身份，一旦上链就撤不回来。",
+    "html.howto.step2": "<b>在钱包里发起一笔普通转账。</b><span class=\"addrline\">收款地址 0x200E710aCAA6A93bbc77146026328C40F1d60fB1</span>金额填 <b>0 ETH</b>——这个地址是项目方的普通钱包，转 ETH 等于直接送钱，留言并不需要它。网络必须是 <b>Ethereum 主网（chainId 1）</b>。",
+    "html.howto.step3": "<b>把文字填进「Hex data / 十六进制数据」字段。</b>多数钱包把它放在高级选项里（MetaMask 叫 <i>Hex data</i>，Rabby 叫 <i>Data</i>）。填进去的是文字的十六进制，下面这个小工具可以帮你转——它只在你的浏览器里算，不联网、不上传。",
+    "html.howto.step4": "<b>确认并发送，gas 自付。</b>以太坊主网一笔大约几美元。发出后约一分钟，这条留言就会出现在本页上面的列表里（本页每 60 秒重新读取一次链上数据）。",
+    "html.howto.warn": "<b>发之前想清楚三件事：</b>留言是<b>公开且永久</b>的，任何人都能读到、且无法删除；你的<b>发送地址会被一起记录</b>，所以请用你愿意公开的地址；本页只是<b>读取</b>这些留言，不代发、不托管、不收费——别把私钥交给任何自称能代发的人。",
+    "html.howto.hexLabel": "把要说的话转成十六进制（实时）",
+    "html.howto.hexPlaceholder": "例如：gm，pool4 什么时候恢复？",
+    "html.howto.copy": "复制十六进制"
   },
   "en": {
     "html.status.block": "Block",
@@ -204,6 +220,22 @@
     "html.official.explorer": "Explorer",
     "html.official.stake": "Stake",
     "html.footer.readonly": "<b>A read-only dashboard.</b> No wallet connection, no signing, no transactions. All data comes from <code>eth_call</code> / <code>eth_getBlockByNumber</code> / <code>eth_getTransactionCount</code> / <code>eth_getBalance</code>, read redundantly through several public RPCs.",
-    "html.footer.disclaimer": "An independent observation tool, unaffiliated with and unreviewed by the IdentityMD / POOL4 team. Not investment advice."
+    "html.footer.disclaimer": "An independent observation tool, unaffiliated with and unreviewed by the IdentityMD / POOL4 team. Not investment advice.",
+    "html.theme.dark": "Dark",
+    "html.theme.light": "Light",
+    "html.theme.toDark": "Switch to the dark theme",
+    "html.theme.toLight": "Switch to the light theme",
+    "html.band.expand": "Expand",
+    "html.band.collapse": "Collapse",
+    "html.howto.summary": "Tutorial: how to post an on-chain message",
+    "html.howto.intro": "The dev has no Twitter and the docs site is still \"Coming soon\" — <b>he reads only the on-chain messages sent to this address</b>. Anyone can post: no permission needed, no IMD required. Here is the whole procedure.",
+    "html.howto.step1": "<b>Write what you want to say first.</b> Plain UTF-8 text only — it is recorded on Ethereum permanently and publicly. <b>Never include anything private</b>: a key, a seed phrase, an email address, your real name. Once it is on-chain it cannot be taken back.",
+    "html.howto.step2": "<b>Start an ordinary transfer in your wallet.</b><span class=\"addrline\">Recipient 0x200E710aCAA6A93bbc77146026328C40F1d60fB1</span>Set the amount to <b>0 ETH</b> — this address is the dev's plain wallet, so ETH sent here is a gift, not a requirement. The network must be <b>Ethereum mainnet (chainId 1)</b>.",
+    "html.howto.step3": "<b>Put the text into the \"Hex data\" field.</b> Most wallets hide it under advanced options (MetaMask calls it <i>Hex data</i>, Rabby calls it <i>Data</i>). What goes in is the text encoded as hex — the converter below does that for you, in your browser only. Nothing is uploaded.",
+    "html.howto.step4": "<b>Confirm and send; you pay the gas.</b> Roughly a few dollars on Ethereum mainnet. About a minute later the message shows up in the list above — this page re-reads the chain every 60 seconds.",
+    "html.howto.warn": "<b>Three things to settle before you send:</b> messages are <b>public and permanent</b> — anyone can read them and nobody can delete them; your <b>sender address is recorded alongside it</b>, so use an address you are happy to have public; this page only <b>reads</b> these messages — it never posts for you, never holds funds, never charges a fee. Do not hand a private key to anyone who claims they will post it for you.",
+    "html.howto.hexLabel": "Convert your text to hex (live)",
+    "html.howto.hexPlaceholder": "e.g. gm — when does pool4 come back?",
+    "html.howto.copy": "Copy hex"
   }
 }

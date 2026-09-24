@@ -68,6 +68,31 @@ node scripts/retag-data-strings.mjs          # lib/contracts.js 的中文 → �
 `_data-copy.json` 数据层、`_proofread.json` 术语校对）。merge 时这些文件的值会**覆盖** locales，
 所以改文案要改这里，不要直接改 `locales/*.json`。
 
+## 主题与折叠条（改样式前先读）
+
+**浅色是默认主题**，深色是 `localStorage` 里的选择（键 `pool4.theme`）。三条约束：
+
+1. **配色只能走语义变量。** `assets/style.css` 顶部 `:root` 是浅色，`html[data-theme="dark"]`
+   一个块覆盖成深色。规则里**不允许出现硬编码颜色**（`#2a1414`、`rgba(255,255,255,.025)` 这类）——
+   要用 `--dead-bg` / `--dead-line` / `--tint` 这种语义名。新增一个颜色时先在 `:root` 定义，
+   再去深色块里给值；只加一边，另一边就会在某个主题下变成不可读的对比度。
+2. **主题必须在首次绘制前应用。** `index.html` 的 `<head>` 里有一段同步内联脚本读
+   `localStorage` 并写 `<html data-theme>`；把它挪到 `app.js` 里会让深色用户每次导航先闪一下白。
+3. **`assets/*` 的缓存是 1 小时**（见 `_headers`）。改完 CSS/JS 要把 `index.html` 里的
+   `?v=` 版本号一起改掉，否则回访的人 1 小时内拿到的还是旧样式 —— 曾经因此被当成"改了没生效"。
+
+折叠条（五个分组 + 每节的「给技术读者的细节」）：
+
+- 分组条 `details.group > summary.band` 与细节条 `details.tech > summary` 都是
+  `display: flex`，靠 `::before` 画的三角形和（分组条的）`展开/收起` 胶囊提示可点。
+  **`display: flex` 掉了就会退化成一条竖线** —— 三角形是用 border 画的，inline 元素上
+  border 会撑满整行高，看起来像"横杠"，这正是第一版被抱怨的原因。
+- 点导航胶囊（`.anchors a`）时，`app.js` 的 `initGroups()` 会 `preventDefault()`：
+  先 `group.open = true`，再在**下一帧** `scrollIntoView()`，最后短暂加 `.jumped` 高亮。
+  顺序不能反 —— 浏览器自己的锚点跳转发生在 `<details>` 展开**之前**，滚动位置按旧布局算，
+  结果就是"跳了但看不到内容"。
+- 吸顶头部的高度由 `html { scroll-padding-top }` 预留（窄屏 168px）。改头部高度时要同步改它。
+
 ## 快照刷新（GitHub Actions）
 
 页面上所有「历史」——烧毁曲线、24h/7d 趋势、链上留言时间线——都来自 `data/` 下的预生成 JSON。

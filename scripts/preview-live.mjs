@@ -1,4 +1,4 @@
-﻿// What does the page look like the moment the engine re-ignites?
+// What does the page look like the moment the engine re-ignites?
 //
 // This runs the real app.js against a DOM stub, but intercepts the RPC calls for
 // three view functions and returns a synthetic "engine is burning again" reading.
@@ -45,7 +45,11 @@ class El {
   set innerHTML(v) { this._html = String(v); }
   get innerHTML() { return this._html; }
   addEventListener() {}
-  setAttribute() {}
+  setAttribute(k, v) { this.attrs = this.attrs || {}; this.attrs[k] = String(v); }
+  // app.js reads <html data-theme> to decide which theme the toggle offers; a stub without
+  // getAttribute made initTheme() throw at module scope and the whole suite exit early.
+  getAttribute(k) { return (this.attrs && this.attrs[k]) || null; }
+  removeAttribute(k) { if (this.attrs) delete this.attrs[k]; }
   appendChild() {}
 }
 const els = new Map(ids.map((id) => [id, new El(id)]));
@@ -66,6 +70,11 @@ globalThis.localStorage = {
   removeItem: (k) => store.delete(k),
 };
 globalThis.window = globalThis;
+// app.js registers a hashchange listener on window; in a browser that exists, in Node it
+// does not, and the resulting TypeError at module scope killed this script before it ran a
+// single assertion. Anything the page legitimately calls on `window` belongs in the stub.
+globalThis.addEventListener = () => {};
+globalThis.removeEventListener = () => {};
 Object.defineProperty(globalThis, "navigator", { value: { language: "zh-CN" }, configurable: true, writable: true });
 globalThis.location = { search: "", href: "http://localhost/", pathname: "/" };
 globalThis.history = { replaceState: () => {} };
@@ -115,9 +124,27 @@ globalThis.fetch = async (url, opts) => {
 };
 
 /* ---------- run ---------- */
+/* If app.js throws at module scope, the await below never resolves, the event loop drains
+ * and Node exits 0 — a suite that reports success without running a single assertion. (That
+ * happened: a `window.addEventListener` call in app.js made this file print nothing and
+ * exit 0.) The sentinel turns any such early exit into a failure. */
+let finished = false;
+process.on("exit", (code) => {
+  if (!finished && code === 0) {
+    process.exitCode = 1;
+    console.error("\nFATAL: the suite exited before it finished — app.js most likely threw while loading");
+  }
+});
+
 const errors = [];
 process.on("unhandledRejection", (e) => errors.push(String(e && e.message ? e.message : e)));
-await import("../assets/app.js");
+try {
+  await import("../assets/app.js");
+} catch (e) {
+  console.error(`\nFATAL: app.js threw while loading: ${e && e.message}`);
+  finished = true;
+  process.exit(1);
+}
 await new Promise((r) => setTimeout(r, 34000));
 
 const strip = (h) => String(h).replace(/<[^>]+>/g, " ").replace(/\s+/g, " ").trim();
@@ -197,4 +224,6 @@ ok("split is 85/15 of the pending amount", /1,123\.275/.test(txt("trim-now")) &&
 
 console.log(`\n${pass} passed, ${fail} failed`);
 console.log("==========================================");
+finished = true;
+await new Promise((resolve) => process.stdout.write("", resolve));
 process.exit(fail === 0 ? 0 : 1);

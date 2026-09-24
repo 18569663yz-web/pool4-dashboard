@@ -5,22 +5,29 @@
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
 <title>IMD 烧毁引擎状态 — 它已经停了</title>
 <meta name="description" content="IMD（IdentityMD）的烧毁机制是否还在工作？距离重新点火还差多少 IMD？只读仪表盘，数据全部从链上直读，不连接钱包。" data-i18n="meta.description" data-i18n-attr="content">
-<meta name="color-scheme" content="dark">
-<link rel="stylesheet" href="assets/style.css">
-<link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'><rect width='32' height='32' rx='7' fill='%230a0b0d'/><circle cx='16' cy='16' r='7' fill='none' stroke='%23ff5d5d' stroke-width='3'/></svg>">
+<meta name="color-scheme" content="light dark">
+<!-- The stored theme has to be applied before the first paint, or a dark-theme reader sees a
+     white flash on every navigation. Inline and synchronous for exactly that reason. -->
+<script>
+try { if (localStorage.getItem("pool4.theme") === "dark") document.documentElement.setAttribute("data-theme", "dark"); } catch (e) {}
+</script>
+<link rel="stylesheet" href="assets/style.css?v=20260925a">
+<link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'><rect width='32' height='32' rx='7' fill='%23ffffff'/><circle cx='16' cy='16' r='7' fill='none' stroke='%23cf2e21' stroke-width='3'/></svg>">
 </head>
 <body>
 
 <header class="top">
   <div class="wrap">
     <div class="brand">
-      <img class="logo" src="assets/imd-coin.png" alt="" width="34" height="34">
       <h1 id="page-title" data-i18n="meta.title">IMD 烧毁引擎状态</h1>
       <span class="sub" id="page-sub">IdentityMD · Ethereum 主网 · 只读</span>
       <div class="langswitch" id="langswitch" role="group" aria-label="Language">
         <button type="button" id="lang-zh" data-lang="zh" class="langbtn">中文</button>
         <button type="button" id="lang-en" data-lang="en" class="langbtn">English</button>
       </div>
+      <button type="button" id="theme-toggle" class="themebtn" aria-label="Theme">
+        <span class="ico" aria-hidden="true">◐</span><span id="theme-label" data-i18n="html.theme.dark">深色</span>
+      </button>
     </div>
     <div class="navrow">
       <nav class="anchors" id="anchors">
@@ -53,7 +60,7 @@
   <div id="stale-banner"></div>
 
   <details class="group" id="conclusion" open>
-    <summary class="band"><span data-i18n="html.band.conclusion">结论</span></summary>
+    <summary class="band"><span class="chev" aria-hidden="true"></span><span data-i18n="html.band.conclusion">结论</span><span class="tgl"><span class="tgl-open" data-i18n="html.band.expand">展开</span><span class="tgl-close" data-i18n="html.band.collapse">收起</span></span></summary>
 
   <!-- ================= 30-SECOND SUMMARY ================= -->
   <section id="summary" class="summary">
@@ -139,7 +146,7 @@
   <!-- ================= EVIDENCE ================= -->
   <!-- ================= MECHANISM ================= -->
   <details class="group" id="evidence">
-    <summary class="band"><span data-i18n="html.band.evidence">证据</span></summary>
+    <summary class="band"><span class="chev" aria-hidden="true"></span><span data-i18n="html.band.evidence">证据</span><span class="tgl"><span class="tgl-open" data-i18n="html.band.expand">展开</span><span class="tgl-close" data-i18n="html.band.collapse">收起</span></span></summary>
 
 
   <section id="verdict-section">
@@ -206,6 +213,53 @@
       </div>
       <div id="messages-list" style="margin-top:12px"></div>
     </div>
+
+    <details class="tech howto" id="howto">
+      <summary data-i18n="html.howto.summary">教程：怎么给项目方发一条链上留言</summary>
+      <div class="howto">
+        <p data-i18n-html="html.howto.intro">
+          项目方没有 Twitter，官网文档也还没上线——<b>他只读这个地址收到的链上留言</b>。
+          任何人都能发，不需要许可，也不需要持有 IMD。下面是完整步骤。
+        </p>
+        <ol>
+          <li data-i18n-html="html.howto.step1">
+            <b>先写好要说的话。</b>只能发纯文本（UTF-8），会被永久、公开地记在以太坊上。
+            <b>不要写任何隐私信息</b>——私钥、助记词、邮箱、真实身份，一旦上链就撤不回来。
+          </li>
+          <li data-i18n-html="html.howto.step2">
+            <b>在钱包里发起一笔普通转账。</b>
+            <span class="addrline">收款地址 0x200E710aCAA6A93bbc77146026328C40F1d60fB1</span>
+            金额填 <b>0 ETH</b>——这个地址是项目方的普通钱包，转 ETH 等于直接送钱，留言并不需要它。
+            网络必须是 <b>Ethereum 主网（chainId 1）</b>。
+          </li>
+          <li data-i18n-html="html.howto.step3">
+            <b>把文字填进「Hex data / 十六进制数据」字段。</b>多数钱包把它放在高级选项里
+            （MetaMask 叫 <i>Hex data</i>，Rabby 叫 <i>Data</i>）。填进去的是文字的十六进制，
+            下面这个小工具可以帮你转——它只在你的浏览器里算，不联网、不上传。
+          </li>
+          <li data-i18n-html="html.howto.step4">
+            <b>确认并发送，gas 自付。</b>以太坊主网一笔大约几美元。发出后约一分钟，
+            这条留言就会出现在本页上面的列表里（本页每 60 秒重新读取一次链上数据）。
+          </li>
+        </ol>
+        <p class="warnline" data-i18n-html="html.howto.warn">
+          <b>发之前想清楚三件事：</b>留言是<b>公开且永久</b>的，任何人都能读到、且无法删除；
+          你的<b>发送地址会被一起记录</b>，所以请用你愿意公开的地址；
+          本页只是<b>读取</b>这些留言，不代发、不托管、不收费——别把私钥交给任何自称能代发的人。
+        </p>
+        <div class="hexbox">
+          <label for="hex-input" data-i18n="html.howto.hexLabel">把要说的话转成十六进制（实时）</label>
+          <textarea id="hex-input" spellcheck="false" rows="3" placeholder="例如：gm，pool4 什么时候恢复？"
+                    data-i18n="html.howto.hexPlaceholder" data-i18n-attr="placeholder"></textarea>
+          <div class="hexrow">
+            <button type="button" class="btn" id="hex-copy" data-i18n="html.howto.copy">复制十六进制</button>
+            <span class="hexmeta" id="hex-meta"></span>
+          </div>
+          <div class="hexout" id="hex-out" hidden></div>
+        </div>
+      </div>
+    </details>
+
     <details class="tech">
       <summary data-i18n="html.msg.techSummary">给技术读者的细节：数据来源与解码方式</summary>
       <div class="note" id="messages-tech" style="margin-top:10px"></div>
@@ -276,7 +330,7 @@
 
   <!-- ================= GOVERNANCE ================= -->
   <details class="group" id="mechanism">
-    <summary class="band"><span data-i18n="html.band.mechanism">机制</span></summary>
+    <summary class="band"><span class="chev" aria-hidden="true"></span><span data-i18n="html.band.mechanism">机制</span><span class="tgl"><span class="tgl-open" data-i18n="html.band.expand">展开</span><span class="tgl-close" data-i18n="html.band.collapse">收起</span></span></summary>
 
 
   <section id="panel-section">
@@ -411,7 +465,7 @@
 
   <!-- ================= DATA ================= -->
   <details class="group" id="governance">
-    <summary class="band"><span data-i18n="html.band.governance">权限</span></summary>
+    <summary class="band"><span class="chev" aria-hidden="true"></span><span data-i18n="html.band.governance">权限</span><span class="tgl"><span class="tgl-open" data-i18n="html.band.expand">展开</span><span class="tgl-close" data-i18n="html.band.collapse">收起</span></span></summary>
 
 
   <section id="owner-section">
@@ -448,7 +502,7 @@
   </details>
 
   <details class="group" id="data">
-    <summary class="band"><span data-i18n="html.band.data">数据</span></summary>
+    <summary class="band"><span class="chev" aria-hidden="true"></span><span data-i18n="html.band.data">数据</span><span class="tgl"><span class="tgl-open" data-i18n="html.band.expand">展开</span><span class="tgl-close" data-i18n="html.band.collapse">收起</span></span></summary>
 
 
   <section id="sources-section">
@@ -487,6 +541,6 @@
 
 <img class="mascot" src="assets/imd-coin.png" alt="" width="76" height="76">
 
-<script type="module" src="assets/app.js"></script>
+<script type="module" src="assets/app.js?v=20260925a"></script>
 </body>
 </html>

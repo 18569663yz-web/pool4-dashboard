@@ -14,5 +14,17 @@
   "s.512": {
     "zh": "、",
     "en": ", "
+  },
+  "s.513": {
+    "zh": "共 {p0} 字节 · 十六进制 {p1} 个字符",
+    "en": "{p0} bytes · {p1} hex characters"
+  },
+  "s.514": {
+    "zh": "已复制",
+    "en": "Copied"
+  },
+  "s.515": {
+    "zh": "复制失败，请手动选中",
+    "en": "Copy failed — select it manually"
   }
 }

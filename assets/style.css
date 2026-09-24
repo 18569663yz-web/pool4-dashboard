@@ -1,6 +1,52 @@
-/* pool4-dashboard — dark, mobile-first, zero dependencies */
+/* pool4-dashboard — light by default (dark is opt-in), mobile-first, zero dependencies */
 
 :root {
+  color-scheme: light;
+
+  --bg: #f5f6f8;
+  --bg-1: #ffffff;
+  --bg-2: #f2f4f7;
+  --bg-3: #e8ecf2;
+  --line: #e4e8ee;
+  --line-2: #c9d2de;
+  --fg: #0f1419;
+  --fg-2: #4b5666;
+  --fg-3: #78848f;
+  --fg-strong: #05080b;
+  --accent: #1a68d1;
+  --dead: #cf2e21;
+  --warn: #a95c05;
+  --live: #0a7a4a;
+  --info: #4a53d6;
+
+  /* Semantic tints. Every coloured surface on the page resolves through one of these,
+   * which is what makes the dark theme a single override block instead of a second sheet. */
+  --tint: rgba(15, 20, 25, 0.028);
+  --tint-2: rgba(15, 20, 25, 0.05);
+  --dead-tint: #fdf1f0;
+  --live-tint: #edfaf3;
+  --warn-tint: #fdf6ea;
+  --dead-bg: #fdf0ef;  --dead-line: #f0b3ad;  --dead-fg: #8a1c14;
+  --warn-bg: #fdf5ea;  --warn-line: #eccb9b;  --warn-fg: #7a3f06;
+  --live-bg: #eaf8f1;  --live-line: #9ad6b8;  --live-fg: #04543a;
+  --info-bg: #eef2fe;  --info-line: #c2cdf7;  --info-fg: #33399c;
+  --sel-bg: #e7efff;   --sel-line: #9dbbf0;   --sel-fg: #14418f;
+
+  --header-bg: rgba(255, 255, 255, 0.88);
+  --shadow-card: 0 1px 2px rgba(16, 24, 40, 0.04), 0 1px 3px rgba(16, 24, 40, 0.06);
+  --shadow-pop: 0 8px 24px rgba(16, 24, 40, 0.14);
+  --shadow-art: drop-shadow(0 12px 28px rgba(16, 24, 40, 0.22));
+
+  --mono: ui-monospace, "SF Mono", "Cascadia Mono", "Roboto Mono", Menlo, Consolas, monospace;
+  --sans: system-ui, -apple-system, "Segoe UI", Roboto, "Helvetica Neue", "Noto Sans SC", sans-serif;
+  --r: 10px;
+}
+
+/* ---------- dark theme (opt-in via the header switch) ---------- */
+
+html[data-theme="dark"] {
+  color-scheme: dark;
+
   --bg: #0a0b0d;
   --bg-1: #121419;
   --bg-2: #181b21;
@@ -10,14 +56,28 @@
   --fg: #e8eaed;
   --fg-2: #a2aab6;
   --fg-3: #6b7482;
+  --fg-strong: #ffffff;
   --accent: #4a9eff;
   --dead: #ff5d5d;
   --warn: #ffa53d;
   --live: #35d07f;
   --info: #7c8cff;
-  --mono: ui-monospace, "SF Mono", "Cascadia Mono", "Roboto Mono", Menlo, Consolas, monospace;
-  --sans: system-ui, -apple-system, "Segoe UI", Roboto, "Helvetica Neue", "Noto Sans SC", sans-serif;
-  --r: 10px;
+
+  --tint: rgba(255, 255, 255, 0.025);
+  --tint-2: rgba(255, 255, 255, 0.05);
+  --dead-tint: #1a1013;
+  --live-tint: #0f1a14;
+  --warn-tint: #1a1710;
+  --dead-bg: #2a1414;  --dead-line: #5c2626;  --dead-fg: #ffc9c9;
+  --warn-bg: #2a2114;  --warn-line: #5c4526;  --warn-fg: #ffe0b8;
+  --live-bg: #122a1d;  --live-line: #1f5c3a;  --live-fg: #b6f0d0;
+  --info-bg: #101522;  --info-line: #26365c;  --info-fg: #c2d4ff;
+  --sel-bg: #16233a;   --sel-line: #2f4a6e;   --sel-fg: #ffffff;
+
+  --header-bg: rgba(10, 11, 13, 0.92);
+  --shadow-card: none;
+  --shadow-pop: 0 8px 24px rgba(0, 0, 0, 0.5);
+  --shadow-art: drop-shadow(0 10px 26px rgba(0, 0, 0, 0.6));
 }
 
 * { box-sizing: border-box; }
@@ -46,13 +106,14 @@ code, .mono { font-family: var(--mono); font-size: 0.92em; }
 /* The header is sticky, so an anchor jump lands with its target underneath the header — the
  * heading the reader just clicked is hidden behind it and the section looks empty. Reserving
  * the header's height as scroll padding fixes every anchor at once. */
-html { scroll-padding-top: 124px; }
+html { scroll-padding-top: 124px; scroll-behavior: smooth; }
 /* On a phone the header wraps onto more lines, so the reservation has to grow with it. */
 @media (max-width: 700px) { html { scroll-padding-top: 168px; } }
+@media (prefers-reduced-motion: reduce) { html { scroll-behavior: auto; } }
 
 header.top {
   position: sticky; top: 0; z-index: 50;
-  background: rgba(10, 11, 13, 0.92);
+  background: var(--header-bg);
   backdrop-filter: blur(12px);
   border-bottom: 1px solid var(--line);
   padding: 10px 0;
@@ -61,8 +122,6 @@ header.top .wrap { padding-bottom: 0; }
 .brand { display: flex; align-items: baseline; gap: 10px; flex-wrap: wrap; }
 .brand h1 { font-size: 15px; margin: 0; font-weight: 650; letter-spacing: -0.01em; }
 .brand .sub { color: var(--fg-3); font-size: 12px; }
-/* The brand row aligns on the text baseline and an image has none, so it opts out. */
-.brand .logo { align-self: center; display: block; border-radius: 50%; }
 
 .statusline {
   display: flex; gap: 14px; flex-wrap: wrap;
@@ -87,6 +146,7 @@ section > .lede { color: var(--fg-2); font-size: 13.5px; margin: 0 0 14px; max-w
   border: 1px solid var(--line);
   border-radius: var(--r);
   padding: 16px;
+  box-shadow: var(--shadow-card);
 }
 .card + .card { margin-top: 12px; }
 
@@ -100,12 +160,13 @@ section > .lede { color: var(--fg-2); font-size: 13.5px; margin: 0 0 14px; max-w
 .verdict {
   border-radius: var(--r);
   border: 1px solid var(--line-2);
-  background: linear-gradient(160deg, #1a1013 0%, var(--bg-1) 55%);
+  background: linear-gradient(160deg, var(--dead-tint) 0%, var(--bg-1) 55%);
   padding: 20px;
   margin-top: 20px;
+  box-shadow: var(--shadow-card);
 }
-.verdict.live { background: linear-gradient(160deg, #0f1a14 0%, var(--bg-1) 55%); }
-.verdict.critical { background: linear-gradient(160deg, #1a1710 0%, var(--bg-1) 55%); }
+.verdict.live { background: linear-gradient(160deg, var(--live-tint) 0%, var(--bg-1) 55%); }
+.verdict.critical { background: linear-gradient(160deg, var(--warn-tint) 0%, var(--bg-1) 55%); }
 
 .verdict .headline {
   display: flex; align-items: center; gap: 10px; flex-wrap: wrap;
@@ -116,9 +177,9 @@ section > .lede { color: var(--fg-2); font-size: 13.5px; margin: 0 0 14px; max-w
   font-size: 11px; font-weight: 700; letter-spacing: 0.08em; text-transform: uppercase;
   padding: 3px 9px; border-radius: 999px; border: 1px solid;
 }
-.badge-state.dormant { color: var(--dead); border-color: #5c2626; background: #2a1414; }
-.badge-state.critical { color: var(--warn); border-color: #5c4526; background: #2a2114; }
-.badge-state.live { color: var(--live); border-color: #1f5c3a; background: #122a1d; }
+.badge-state.dormant { color: var(--dead); border-color: var(--dead-line); background: var(--dead-bg); }
+.badge-state.critical { color: var(--warn); border-color: var(--warn-line); background: var(--warn-bg); }
+.badge-state.live { color: var(--live); border-color: var(--live-line); background: var(--live-bg); }
 
 .verdict .answer { color: var(--fg-2); font-size: 14px; margin-bottom: 18px; max-width: 70ch; }
 
@@ -171,11 +232,11 @@ section > .lede { color: var(--fg-2); font-size: 13.5px; margin: 0 0 14px; max-w
 .src:hover, .src:focus { border-color: var(--accent); color: var(--accent); outline: none; }
 .src .tip {
   display: none; position: absolute; bottom: calc(100% + 7px); left: 50%; transform: translateX(-50%);
-  background: var(--bg-3); border: 1px solid var(--line-2); border-radius: 7px;
+  background: var(--bg-1); border: 1px solid var(--line-2); border-radius: 7px;
   padding: 8px 10px; width: max-content; max-width: min(340px, 84vw);
   font-family: var(--mono); font-size: 11px; color: var(--fg-2);
   text-align: left; line-height: 1.5; z-index: 100; white-space: normal;
-  box-shadow: 0 8px 24px rgba(0,0,0,.5);
+  box-shadow: var(--shadow-pop);
 }
 .src:hover .tip, .src:focus .tip { display: block; }
 .src .tip b { color: var(--fg); font-weight: 600; display: block; margin-bottom: 2px; }
@@ -186,12 +247,12 @@ section > .lede { color: var(--fg-2); font-size: 13.5px; margin: 0 0 14px; max-w
 .states { display: grid; grid-template-columns: repeat(auto-fit, minmax(190px, 1fr)); gap: 10px; }
 .state {
   border: 1px solid var(--line); border-radius: 8px; padding: 12px;
-  background: var(--bg-2); opacity: .5; transition: opacity .25s, border-color .25s;
+  background: var(--bg-2); opacity: .55; transition: opacity .25s, border-color .25s;
 }
 .state.on { opacity: 1; }
-.state.on.dormant { border-color: #5c2626; background: #1c1113; }
-.state.on.critical { border-color: #5c4526; background: #1c1710; }
-.state.on.live { border-color: #1f5c3a; background: #101c16; }
+.state.on.dormant { border-color: var(--dead-line); background: var(--dead-bg); }
+.state.on.critical { border-color: var(--warn-line); background: var(--warn-bg); }
+.state.on.live { border-color: var(--live-line); background: var(--live-bg); }
 .state .name { font-weight: 650; font-size: 14px; display: flex; align-items: center; gap: 7px; }
 .state .cond { font-family: var(--mono); font-size: 11.5px; color: var(--fg-2); margin-top: 6px; }
 .state .src-line { font-size: 11px; color: var(--fg-3); margin-top: 6px; }
@@ -206,8 +267,8 @@ section > .lede { color: var(--fg-2); font-size: 13.5px; margin: 0 0 14px; max-w
   content: ""; position: absolute; left: -21px; top: 13px;
   width: 9px; height: 9px; border-radius: 50%; background: var(--bg-3); border: 2px solid var(--line-2);
 }
-.tl .ev.dead::before { background: var(--dead); border-color: #5c2626; }
-.tl .ev.alive::before { background: var(--live); border-color: #1f5c3a; }
+.tl .ev.dead::before { background: var(--dead); border-color: var(--dead-line); }
+.tl .ev.alive::before { background: var(--live); border-color: var(--live-line); }
 .tl .ev .what { font-size: 13.5px; }
 .tl .ev .when { font-family: var(--mono); font-size: 11.5px; color: var(--fg-3); }
 .tl .ev .age { color: var(--fg-2); }
@@ -224,8 +285,8 @@ section > .lede { color: var(--fg-2); font-size: 13.5px; margin: 0 0 14px; max-w
 .tbl tr:last-child td { border-bottom: none; }
 .tbl td.num { font-family: var(--mono); text-align: right; white-space: nowrap; }
 .tbl .sev { font-size: 10.5px; font-weight: 700; padding: 2px 6px; border-radius: 4px; text-transform: uppercase; letter-spacing: .05em; white-space: nowrap; }
-.sev.critical { background: #2a1414; color: var(--dead); border: 1px solid #5c2626; }
-.sev.high { background: #2a2114; color: var(--warn); border: 1px solid #5c4526; }
+.sev.critical { background: var(--dead-bg); color: var(--dead); border: 1px solid var(--dead-line); }
+.sev.high { background: var(--warn-bg); color: var(--warn); border: 1px solid var(--warn-line); }
 .sev.medium { background: var(--bg-3); color: var(--fg-2); border: 1px solid var(--line-2); }
 
 blockquote {
@@ -244,9 +305,10 @@ blockquote cite { display: block; font-style: normal; font-size: 11px; color: va
 .field .row { display: flex; align-items: center; gap: 8px; }
 .field input[type=range] { flex: 1; accent-color: var(--accent); }
 .field input[type=number] {
-  width: 100%; background: var(--bg-3); border: 1px solid var(--line-2); color: var(--fg);
+  width: 100%; background: var(--bg-1); border: 1px solid var(--line-2); color: var(--fg);
   border-radius: 6px; padding: 6px 8px; font-family: var(--mono); font-size: 13px;
 }
+
 .field .hint { font-size: 11px; color: var(--fg-3); margin-top: 4px; }
 
 .sim-out { margin-top: 16px; display: grid; gap: 10px; }
@@ -256,11 +318,11 @@ blockquote cite { display: block; font-style: normal; font-size: 11px; color: va
   display: flex; gap: 9px; align-items: flex-start;
 }
 .banner .ic { flex: 0 0 auto; font-size: 14px; line-height: 1.4; }
-.banner.danger { background: #1c1113; border-color: #5c2626; color: #ffc9c9; }
-.banner.warn { background: #1c1710; border-color: #5c4526; color: #ffe0b8; }
-.banner.ok { background: #101c16; border-color: #1f5c3a; color: #b6f0d0; }
-.banner.info { background: #101522; border-color: #26365c; color: #c2d4ff; }
-.banner b { color: #fff; }
+.banner.danger { background: var(--dead-bg); border-color: var(--dead-line); color: var(--dead-fg); }
+.banner.warn { background: var(--warn-bg); border-color: var(--warn-line); color: var(--warn-fg); }
+.banner.ok { background: var(--live-bg); border-color: var(--live-line); color: var(--live-fg); }
+.banner.info { background: var(--info-bg); border-color: var(--info-line); color: var(--info-fg); }
+.banner b { color: var(--fg-strong); }
 
 /* ---------- misc ---------- */
 
@@ -275,9 +337,9 @@ blockquote cite { display: block; font-style: normal; font-size: 11px; color: va
   background: var(--bg-3); border: 1px solid var(--line-2); border-radius: 5px;
   padding: 1px 6px; color: var(--fg-2); margin: 1px 3px 1px 0;
 }
-.chip.bad { color: var(--dead); border-color: #5c2626; background: #1c1113; }
-.chip.good { color: var(--live); border-color: #1f5c3a; background: #101c16; }
-.chip.warn { color: var(--warn); border-color: #5c4526; background: #1c1710; }
+.chip.bad { color: var(--dead); border-color: var(--dead-line); background: var(--dead-bg); }
+.chip.good { color: var(--live); border-color: var(--live-line); background: var(--live-bg); }
+.chip.warn { color: var(--warn); border-color: var(--warn-line); background: var(--warn-bg); }
 
 .err { color: var(--dead); font-family: var(--mono); font-size: 11.5px; }
 .muted { color: var(--fg-3); }
@@ -313,7 +375,7 @@ details > div { padding-top: 8px; }
   border: 1px solid var(--line); background: var(--bg-2); text-decoration: none;
 }
 .anchors a:hover { color: var(--fg); border-color: var(--line-2); background: var(--bg-3); text-decoration: none; }
-.anchors a.on { color: #fff; border-color: #2f4a6e; background: #16233a; }
+.anchors a.on { color: var(--sel-fg); border-color: var(--sel-line); background: var(--sel-bg); }
 
 /* Official-entry links share the anchor row, pushed to the right edge. */
 .navrow { display: flex; gap: 10px; flex-wrap: wrap; align-items: center; margin-top: 7px; }
@@ -325,146 +387,126 @@ details > div { padding-top: 8px; }
 }
 .official a:hover { color: var(--fg); border-color: var(--line-2); background: var(--bg-2); text-decoration: none; }
 
-/* ---------- section bands ---------- */
+/* ---------- theme switch ---------- */
 
-.band {
-  display: flex; align-items: center; gap: 12px;
-  margin: 44px 0 -8px;
+.themebtn {
+  font: inherit; font-size: 12px; line-height: 1; font-weight: 500;
+  color: var(--fg-2); background: var(--bg-1);
+  border: 1px solid var(--line-2); border-radius: 999px;
+  padding: 5px 11px; cursor: pointer; margin-left: 4px;
+  display: inline-flex; align-items: center; gap: 6px;
 }
-.band::after { content: ""; flex: 1; height: 1px; background: var(--line); }
-.band span {
-  font-size: 11px; letter-spacing: 0.14em; text-transform: uppercase;
-  color: var(--fg-3); font-weight: 700; white-space: nowrap;
-}
+.themebtn:hover { color: var(--fg); background: var(--bg-2); }
+.themebtn .ico { font-size: 13px; line-height: 1; }
 
-/* ---------- 30-second summary ---------- */
-
-.summary {
-  margin-top: 20px; padding: 20px;
-  border: 1px solid var(--line-2); border-radius: 12px;
-  background: linear-gradient(165deg, #1a1013 0%, var(--bg-1) 60%);
-}
-.summary.calm { background: linear-gradient(165deg, #0f1a14 0%, var(--bg-1) 60%); }
-
-.sum-headline {
-  font-size: clamp(20px, 5vw, 30px); font-weight: 700; letter-spacing: -0.025em;
-  margin: 0 0 16px; line-height: 1.25; text-transform: none; color: var(--fg);
-}
-.sum-headline b { color: var(--dead); }
-.sum-headline.calm b { color: var(--live); }
-
-.sum-grid { display: grid; gap: 12px; grid-template-columns: repeat(auto-fit, minmax(250px, 1fr)); }
-.sum-block {
-  background: rgba(255,255,255,0.025); border: 1px solid var(--line);
-  border-radius: 9px; padding: 13px 14px;
-}
-.sum-block h3 {
-  font-size: 12px; text-transform: uppercase; letter-spacing: 0.07em;
-  color: var(--fg-3); margin: 0 0 7px; font-weight: 650;
-}
-.sum-block ul { margin: 0; padding-left: 17px; }
-.sum-block li { font-size: 14px; margin-bottom: 4px; }
-.sum-block p { margin: 0; font-size: 14px; }
-.sum-block.danger { border-color: #4a2222; background: rgba(255,93,93,0.055); }
-.sum-block.danger h3 { color: #ff9a9a; }
-
-.sum-jump {
-  margin: 16px 0 0; font-size: 12.5px; color: var(--fg-3); text-align: center;
-}
-
-/* ---------- prose ---------- */
-
-.prose { max-width: 74ch; }
-.prose p { margin: 0 0 12px; font-size: 14.5px; color: var(--fg-2); }
-.prose p b { color: var(--fg); }
-.prose p.muted { color: var(--fg-3); font-size: 13px; }
-
-/* ---------- inline explainer tags ---------- */
-
-.src-note {
-  font-size: 11px; color: var(--fg-3); font-weight: 400;
-  text-transform: none; letter-spacing: 0;
-}
-.src.demo { vertical-align: middle; margin: 0 1px; }
-
-/* ---------- simulator presets ---------- */
-
-.presets { display: flex; gap: 8px; flex-wrap: wrap; }
-.preset {
-  font: inherit; font-size: 13.5px; font-weight: 600;
-  color: var(--fg-2); background: var(--bg-2);
-  border: 1px solid var(--line-2); border-radius: 9px;
-  padding: 9px 14px; cursor: pointer; text-align: left;
-  display: flex; flex-direction: column; gap: 1px; line-height: 1.3;
-  transition: background .15s, border-color .15s, color .15s;
-}
-.preset small { font-size: 11px; font-weight: 400; color: var(--fg-3); }
-.preset:hover { background: var(--bg-3); color: var(--fg); }
-.preset.active { border-color: #2f4a6e; background: #16233a; color: #fff; }
-.preset.active small { color: #9fb6d8; }
-
-/* ---------- collapsible technical detail ---------- */
+/* ---------- collapsible technical detail ---------- *
+ * "给技术读者的细节" boxes. These were the worst offenders for "is this even clickable?":
+ * a hairline box whose summary was grey 12.5px text behind a 10px triangle. They now carry
+ * a bordered header row, a hover state, and a +/- affordance on the right — the +/- is an
+ * icon rather than a word so it needs no translation. */
 
 details.tech {
-  margin-top: 10px; border: 1px solid var(--line); border-radius: 9px;
+  margin-top: 10px; border: 1px solid var(--line-2); border-radius: 9px;
   background: var(--bg-1); overflow: hidden;
 }
 details.tech > summary {
-  padding: 11px 14px; font-size: 12.5px; color: var(--fg-3);
-  cursor: pointer; list-style: none; display: flex; align-items: center; gap: 8px;
+  padding: 12px 14px; font-size: 13px; font-weight: 600; color: var(--fg-2);
+  cursor: pointer; list-style: none; display: flex; align-items: center; gap: 9px;
+  transition: background 0.15s ease, color 0.15s ease;
 }
 details.tech > summary::-webkit-details-marker { display: none; }
 details.tech > summary::before {
-  content: "▸"; font-size: 10px; color: var(--fg-3); transition: transform .15s;
+  content: ""; flex: 0 0 auto; width: 0; height: 0;
+  border-left: 7px solid var(--fg-3);
+  border-top: 5.5px solid transparent; border-bottom: 5.5px solid transparent;
+  transition: transform 0.15s ease, border-left-color 0.15s ease;
 }
-details.tech[open] > summary::before { transform: rotate(90deg); }
-details.tech > summary:hover { color: var(--fg-2); background: var(--bg-2); }
-details.tech[open] > summary { border-bottom: 1px solid var(--line); color: var(--fg-2); }
+details.tech > summary::after {
+  content: "+"; margin-left: auto; font-family: var(--mono); font-size: 15px;
+  font-weight: 600; line-height: 1; color: var(--accent);
+}
+details.tech[open] > summary::before { transform: rotate(90deg); border-left-color: var(--accent); }
+details.tech[open] > summary::after { content: "−"; color: var(--fg-3); }
+details.tech > summary:hover { color: var(--fg); background: var(--bg-2); }
+details.tech > summary:hover::before { border-left-color: var(--accent); }
+details.tech[open] > summary { border-bottom: 1px solid var(--line); color: var(--fg); background: var(--bg-2); }
 details.tech > *:not(summary) { padding: 0 14px 13px; }
 details.tech > .card { margin: 12px 14px; padding: 12px; }
 details.tech > .note { margin: 12px 14px; }
 details.tech > .scroll-x { padding: 12px 14px; }
 
-/* ---------- collapsible section groups ---------- *
- * The five top-level groups are closed by default, which is what stops the page from being
- * one continuous 16-section scroll. The summary is styled as an obvious clickable bar rather
- * than a hairline caption: the first version kept the .band look, and it was impossible to
- * tell the sections were collapsible at all. */
+/* ---------- section bands (the five collapsible groups) ---------- *
+ * These are the page's primary navigation: five big bars, closed by default. The first
+ * pass kept the old hairline-caption look, so nothing about them said "click me" — a reader
+ * had to be told. They are now filled, bordered, shadowed bars with a leading chevron, a
+ * trailing 展开/收起 label, and a hover/press response. */
 
 details.group > summary.band {
-  margin: 14px 0 0; padding: 11px 15px;
+  display: flex; align-items: center; gap: 10px;
+  margin: 14px 0 0; padding: 13px 16px;
   list-style: none; cursor: pointer; user-select: none;
-  border: 1px solid var(--line); border-radius: 10px; background: var(--bg-2);
-  transition: background 0.15s ease, border-color 0.15s ease;
+  border: 1px solid var(--line-2); border-radius: 11px;
+  background: var(--bg-1);
+  box-shadow: var(--shadow-card);
+  transition: background 0.15s ease, border-color 0.15s ease, box-shadow 0.15s ease;
 }
 details.group > summary.band::-webkit-details-marker { display: none; }
 /* No trailing rule: the bar's own border does that job now. */
 details.group > summary.band::after { display: none; }
-details.group > summary.band::before {
-  content: "▸"; flex: 0 0 auto; font-size: 13px; line-height: 1; color: var(--fg-2);
+details.group > summary.band:hover { background: var(--bg-2); border-color: var(--accent); }
+details.group > summary.band:active { background: var(--bg-3); }
+details.group[open] > summary.band { background: var(--sel-bg); border-color: var(--sel-line); }
+details.group > summary.band > span:not(.chev):not(.tgl) { font-size: 13.5px; color: var(--fg); font-weight: 700; letter-spacing: 0.02em; }
+
+/* Leading chevron: a real triangle that rotates, not a hairline. */
+details.group > summary.band .chev {
+  flex: 0 0 auto; width: 0; height: 0; margin-right: 2px;
+  border-left: 7px solid var(--fg-2);
+  border-top: 5.5px solid transparent; border-bottom: 5.5px solid transparent;
   transition: transform 0.18s ease;
 }
-details.group[open] > summary.band::before { transform: rotate(90deg); }
-details.group > summary.band:hover { background: var(--bg-3); border-color: var(--line-2); }
-details.group[open] > summary.band { background: var(--bg-3); border-color: var(--line-2); }
-details.group > summary.band span { font-size: 12px; color: var(--fg-2); }
+details.group > summary.band:hover .chev { border-left-color: var(--accent); }
+details.group[open] > summary.band .chev { transform: rotate(90deg); border-left-color: var(--accent); }
+
+/* Trailing label: "展开" while closed, "收起" while open — the plainest possible signal. */
+details.group > summary.band .tgl {
+  flex: 0 0 auto; margin-left: auto; font-size: 11.5px; font-weight: 600;
+  color: var(--accent); border: 1px solid var(--sel-line); background: var(--bg-1);
+  border-radius: 999px; padding: 3px 10px; white-space: nowrap;
+}
+details.group[open] > summary.band .tgl { color: var(--fg-2); border-color: var(--line-2); background: var(--bg-1); }
+details.group > summary.band .tgl-close { display: none; }
+details.group[open] > summary.band .tgl-open { display: none; }
+details.group[open] > summary.band .tgl-close { display: inline; }
+
 /* The first group is the headline, so it sits closer to the header than the rest. */
 details.group:first-of-type > summary.band { margin-top: 18px; }
 /* Sections already carry their own top margin; trim the doubled gap inside a group. */
 details.group > section:first-of-type { margin-top: 12px; }
 
+/* A short highlight after a nav jump, so "it opened" is visible and not just inferred. */
+@keyframes jumpflash {
+  0%   { box-shadow: 0 0 0 3px rgba(26, 104, 209, 0.35); }
+  100% { box-shadow: 0 0 0 3px rgba(26, 104, 209, 0); }
+}
+details.group.jumped > summary.band { animation: jumpflash 1.4s ease-out 1; }
+
 /* ---------- mascot ---------- *
- * On a wide screen the 1080px column leaves a lot of empty space on either side. The coin
- * fills the right-hand one, and only appears when there is genuinely room for it — never
- * overlapping the column, never in the way on a laptop or a phone. */
+ * On a wide screen the 1080px column leaves a lot of empty space on either side, and that
+ * right-hand gap is where the artwork goes. It stays hidden until a high-resolution image
+ * exists: the only asset in the repo is 64x64, and blowing that up to 148px looks worse than
+ * empty space. Drop the real file in and delete the `display: none` below. */
 .mascot { display: none; }
-@media (min-width: 1320px) {
-  .mascot {
-    display: block; position: fixed; right: 40px; bottom: 8vh;
-    width: 104px; height: 104px; border-radius: 50%;
-    pointer-events: none; z-index: 5; opacity: 0.94;
-    filter: drop-shadow(0 10px 26px rgba(0, 0, 0, 0.6));
+@media (min-width: 1340px) {
+  .mascot.show {
+    display: block; position: fixed; right: 28px; bottom: 9vh;
+    width: 148px; height: 148px; border-radius: 50%;
+    pointer-events: none; z-index: 5;
+    filter: var(--shadow-art);
   }
+}
+@media (min-width: 1600px) {
+  .mascot.show { width: 200px; height: 200px; right: 52px; }
 }
 
 /* ---------- verbatim on-chain quotes ---------- */
@@ -480,7 +522,7 @@ details.group > section:first-of-type { margin-top: 12px; }
   padding: 10px 12px;
   margin: 8px 0 0;
   /* Quotes are prose, not code: collapse the source indentation. On-chain message
-     bodies keep their own line breaks via .msg-body. */
+   * bodies keep their own line breaks via .msg-body. */
   white-space: normal;
   word-break: break-word;
 }
@@ -511,7 +553,7 @@ blockquote.verbatim cite {
   padding: 4px 10px; cursor: pointer;
 }
 .langbtn:hover { color: var(--fg); border-color: var(--line-2); }
-.langbtn.active { color: #fff; border-color: #2f4a6e; background: #16233a; }
+.langbtn.active { color: var(--sel-fg); border-color: var(--sel-line); background: var(--sel-bg); }
 
 /* verbatim vs. our own summary — must be distinguishable at a glance */
 .msg-verbatim-label {
@@ -519,13 +561,6 @@ blockquote.verbatim cite {
   color: var(--fg-3); margin: 6px 0 3px;
 }
 
-.msg-body {
-  font-family: var(--mono);
-  background: var(--bg-3);
-  border-radius: 6px;
-  padding: 10px 12px;
-  margin-top: 4px;
-}
 .msg-summary {
   font-family: var(--sans);
   font-size: 13px;
@@ -539,7 +574,7 @@ blockquote.verbatim cite {
 .msg-summary .tag {
   display: inline-block; font-size: 10.5px; font-weight: 700;
   letter-spacing: .05em; color: var(--warn);
-  border: 1px solid #5c4526; background: #2a2114;
+  border: 1px solid var(--warn-line); background: var(--warn-bg);
   border-radius: 4px; padding: 1px 6px; margin-right: 7px;
 }
 
@@ -547,7 +582,7 @@ blockquote.verbatim cite {
 
 .owner-card {
   background: var(--bg-1); border: 1px solid var(--line); border-radius: var(--r);
-  padding: 14px 16px; margin-top: 10px;
+  padding: 14px 16px; margin-top: 10px; box-shadow: var(--shadow-card);
 }
 .owner-card.risk { border-left: 3px solid var(--dead); }
 .owner-card.safe { border-left: 3px solid var(--live); }
@@ -568,15 +603,11 @@ blockquote.verbatim cite {
   background: var(--bg-2); margin-bottom: 10px;
 }
 .msg:last-child { margin-bottom: 0; }
-.msg.from-dev { border-left: 3px solid var(--live); background: #101a15; }
+.msg.from-dev { border-left: 3px solid var(--live); background: var(--live-bg); }
 .msg.from-community { border-left: 3px solid var(--line-2); }
-.msg.key { border-color: #5c4526; background: #1a1610; }
+.msg.key { border-color: var(--warn-line); background: var(--warn-bg); }
 .msg.key.from-dev { border-left-color: var(--warn); }
 .msg-head { display: flex; gap: 8px; align-items: center; flex-wrap: wrap; margin-bottom: 7px; }
-.msg-verbatim-label {
-  font-size: 10.5px; letter-spacing: .05em; text-transform: uppercase;
-  color: var(--fg-3); margin: 6px 0 3px;
-}
 
 .msg-body {
   font-size: 14px; color: var(--fg); white-space: pre-wrap; word-break: break-word;
@@ -593,6 +624,58 @@ blockquote.verbatim cite {
 .msg-foot { margin-top: 8px; font-size: 11.5px; }
 .msg-foot a { color: var(--fg-3); }
 .msg-foot a:hover { color: var(--accent); }
+
+/* ---------- "how to post a message on-chain" tutorial ---------- */
+
+.howto { margin-top: 12px; }
+.howto > p { font-size: 13.5px; color: var(--fg-2); margin: 0 0 12px; }
+.howto > ol { margin: 0; padding-left: 20px; }
+.howto > ol > li { font-size: 13.5px; color: var(--fg-2); margin-bottom: 10px; }
+.howto > ol > li b { color: var(--fg); }
+.howto code {
+  background: var(--bg-3); border: 1px solid var(--line);
+  border-radius: 4px; padding: 1px 5px;
+}
+.howto .addrline {
+  display: block; font-family: var(--mono); font-size: 12px; word-break: break-all;
+  background: var(--bg-3); border: 1px solid var(--line-2); border-radius: 7px;
+  padding: 9px 11px; margin: 7px 0; color: var(--fg);
+}
+.howto .warnline {
+  font-size: 12.5px; color: var(--warn-fg); background: var(--warn-bg);
+  border: 1px solid var(--warn-line); border-radius: 7px; padding: 9px 11px; margin-top: 10px;
+}
+.howto .warnline b { color: inherit; }
+
+/* The tutorial is a call to action, not a footnote — it gets the accent border. */
+details.tech.howto { border-color: var(--sel-line); }
+details.tech.howto > summary { color: var(--fg); }
+
+/* text -> calldata hex helper */
+.hexbox { margin-top: 12px; }
+.hexbox label { display: block; font-size: 12.5px; font-weight: 600; color: var(--fg-2); margin-bottom: 6px; }
+.hexbox textarea {
+  width: 100%; min-height: 84px; resize: vertical;
+  background: var(--bg-1); color: var(--fg);
+  border: 1px solid var(--line-2); border-radius: 8px;
+  padding: 9px 11px; font-family: var(--mono); font-size: 13px; line-height: 1.5;
+}
+.hexbox textarea:focus { outline: 2px solid var(--accent); outline-offset: 1px; }
+.hexrow { display: flex; gap: 8px; flex-wrap: wrap; align-items: center; margin-top: 8px; }
+.btn {
+  font: inherit; font-size: 12.5px; font-weight: 600;
+  color: var(--sel-fg); background: var(--sel-bg);
+  border: 1px solid var(--sel-line); border-radius: 8px;
+  padding: 7px 13px; cursor: pointer;
+}
+.btn:hover { border-color: var(--accent); }
+.btn.ghost { color: var(--fg-2); background: var(--bg-1); border-color: var(--line-2); }
+.hexout {
+  font-family: var(--mono); font-size: 11.5px; word-break: break-all;
+  background: var(--bg-3); border: 1px solid var(--line); border-radius: 8px;
+  padding: 9px 11px; margin-top: 8px; color: var(--fg-2); max-height: 150px; overflow: auto;
+}
+.hexmeta { font-size: 11.5px; color: var(--fg-3); margin-top: 6px; }
 
 @media (prefers-reduced-motion: reduce) {
   * { transition: none !important; animation: none !important; }

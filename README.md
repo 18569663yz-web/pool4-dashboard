@@ -125,6 +125,13 @@ node scripts/collect.mjs https://your-own-node.example.com
 他只在链上发留言（并公开鼓励别人做监控工具）。面板按时间倒序展示全部可读留言，
 区分项目方与社区、高亮与参数/权限/经济相关的条目 —— 其中最新一条（2026-09-21）明确预告了要改 pool4 设置。
 
+面板下面附一节 **「教程：怎么给项目方发一条链上留言」**：留言板是一个普通 EOA，
+留言就是一笔发往它的、data 里写着 UTF-8 文本的 0 ETH 转账。教程写清了四步
+（写文本 → 钱包发起转账到 `0x200E…0fB1`、金额 0 → 把文本填进钱包的 *Hex data* 字段 → 发送、gas 自付）、
+三条注意（公开永久、发送地址会被记录、本页只读不代发），并带一个**纯前端**的
+「文本 → calldata 十六进制」转换器（`assets/app.js` 的 `initHexTool()`，用 `TextEncoder`，
+不联网、不上传）。
+
 源码级机制说明（含每条的源码行依据、交叉验算、历史回放对账、以及 §12 的更正记录）在 **[`NOTES.md`](NOTES.md)**。
 
 ---
@@ -209,6 +216,18 @@ node scripts/verify-snapshots.mjs           # 只校验 data/ 里现有的快照
 
 ---
 
+## 主题
+
+页面**默认浅色**（白天模式）。右上角「深色 / 浅色」按钮切换，选择记在 `localStorage`
+（键名 `pool4.theme`），并由 `<head>` 里一段同步内联脚本在**首次绘制之前**应用 ——
+否则选了深色的人每次导航都会先看到一次白闪。
+
+配色全部走 `assets/style.css` 顶部的语义变量：`:root` 是浅色，
+`html[data-theme="dark"]` 一个覆盖块就是深色主题。没有第二份样式表，
+也没有按组件写的深色特例 —— 新增一个颜色时，先在 `:root` 定义语义变量，再在深色块里给值。
+
+---
+
 ## 页面是怎么组织的
 
 读者是 IMD 持币者与 sIMD 质押者，不是合约开发者。所以页面**默认只显示结论**，
@@ -218,16 +237,22 @@ node scripts/verify-snapshots.mjs           # 只校验 data/ 里现有的快照
 
 1. **30 秒摘要** —— 发生了什么 / 影响我什么 / 什么时候恢复 / 一件该知道的风险
 2. **这是什么** —— 一段大白话交代背景，不假设读者读过合约
-3. **证据**（现状、熄火时间线、两道门、池 A 对照）
+3. **证据**（现状、熄火时间线、两道门、池 A 对照、链上留言 + 发消息教程）
 4. **机制**（当前数据、模拟器、拆分、奖励流、sIMD、历史）
 5. **权限**（owner 能做什么、参数变更监控）
 6. **数据**（来源清单 + 源码基准）
+
+这六块被收进**五个默认收起的折叠条**（结论 / 证据 / 机制 / 权限 / 数据）：
+带边框、阴影、左侧三角和右侧「展开 / 收起」胶囊，悬停会高亮。
+点顶部导航胶囊不只是跳转 —— 它**先展开对应分组**，再把分组滚到吸顶头部下方，
+并短暂高亮一次（`scroll-padding-top` 负责让标题不落在头部底下）。
 
 约定：
 
 - 每个区块开头都有一句「**这意味着什么**」。
 - 术语默认用人话，源码名放进括号或折叠区（例如「烧毁触发线（源码：`inventoryCap`）」）。
 - 每个数字旁的 <span>i</span> 标记可点开，显示合约地址 + 函数名 + 源码行号。
+- 技术细节用「+ / −」的折叠块收在同一页里，收起时也是一条明显的可点条，不是一条灰字。
 - 取不到的数据显示「取不到」并说明原因 —— 不显示 0，因为 0 是一个具体的断言。
 
 ---
@@ -236,7 +261,7 @@ node scripts/verify-snapshots.mjs           # 只校验 data/ 里现有的快照
 
 ```
 index.html              页面骨架（无框架；静态文案挂 data-i18n，见下）
-assets/style.css        深色主题，移动端优先
+assets/style.css        浅色主题（默认）+ 深色覆盖块，移动端优先
 assets/app.js           渲染 + 60s 轮询 + 参数变更监控
 locales/zh.json         中文文案（默认语言）
 locales/en.json         英文文案，键与 zh 一一对应
@@ -252,6 +277,7 @@ scripts/refresh-snapshots.mjs    刷新五份快照：生成到临时目录 → 
 scripts/verify-snapshots.mjs     快照校验：形状 + 数值量级 + 「不能倒退」
 scripts/make-base-fixture.mjs    从真实事件生成离线 fixture（data/_fixture-base.json）
 scripts/test-build-data.mjs      用 fixture 在无网络环境下跑通 build-data 的完整路径
+scripts/verify-live-site.mjs     打开部署站点，把页面显示的数字与链上直读逐项对比
 scripts/collect.mjs          实时快照 → data/baseline.json
 scripts/index-logs.mjs       分块 eth_getLogs 全历史索引 → data/history.json
 scripts/build-data.mjs       生成前端用的精简数据 → data/timeline.json, data/base.json
@@ -299,7 +325,7 @@ node scripts/check-summaries.mjs     # 链上留言原文与中文摘要并列�
 node scripts/test-build-data.mjs     # build-data 全流程离线跑通（fixture 覆盖本机不可达的 Base 段）
 node scripts/verify-snapshots.mjs    # 快照形状 + 「不能倒退」（刷新流程的守门人）
 node scripts/preview-live.mjs        # 合成 LIVE 数据，确认恢复后不残留「已停」（16 项）
-node scripts/test-render.mjs         # 无头渲染：每个区块都产出内容 + 切到英文后无中文、无裸键名（116 项）
+node scripts/test-render.mjs         # 无头渲染：每个区块都产出内容 + 切到英文后无中文、无裸键名（117 项）
 node scripts/verify-ownership.mjs    # 三重验证各合约 owner（含 sIMD 的 renounce）
 node scripts/audit-owner-powers.mjs  # 权限清单与链上所有权逐项比对
 node scripts/replay.mjs 3            # 归档回放最近 3 次 trim 并与 totalBurned() 对账
@@ -317,7 +343,15 @@ node scripts/shoot.mjs --out shots --url http://127.0.0.1:5173
 # → shots/pool4-zh-full.png（整页长图）、shots/pool4-zh-1..N.png（全分辨率分段）以及英文各一份
 ```
 
-当前状态：**162 项断言全部通过**（28 + 35 + 18 + 18 + 75，另加各取证脚本的自校验）。
+验证**已部署的站点**（页面显示值 vs 链上直读，逐项对比；容差写在脚本里）：
+
+```bash
+node scripts/verify-live-site.mjs                                   # 默认 https://imd.kymmppee.xyz
+node scripts/verify-live-site.mjs --url http://127.0.0.1:5173
+```
+
+当前状态：**390 项断言全部通过**（13 个套件：46 + 26 + 13 + 21 + 8 + 31 + 19 + 16 + 35 + 18 + 24 + 16 + 117，
+另加 `check-html-i18n.mjs` / `check-terminology.mjs` 的覆盖率报告与各取证脚本的自校验）。
 
 `check.mjs` 会审计所有脚本用到的 JSON-RPC 方法，确保只有
 `eth_call` / `eth_getLogs` / `eth_getBlockByNumber` / `eth_getTransactionCount` /

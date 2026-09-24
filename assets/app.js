@@ -134,6 +134,7 @@ async function boot() {
   state.booted = true;
   applyStatic();
   markLangButtons();
+  syncThemeButton();
   initPresets();
   initMessageFilters();
   initLangSwitch();
@@ -143,6 +144,10 @@ async function boot() {
     UNAVAILABLE = tr("s.001");
     applyStatic();
     markLangButtons();
+    // applyStatic() has just rewritten #theme-label from its static key; the button has to
+    // name the theme it switches TO, which depends on the stored choice, not on the markup.
+    syncThemeButton();
+    hexRender();
     // The preset hint is not part of renderAll(), so it needs its own refresh —
     // otherwise it keeps the language it was written in when the page loaded.
     applyPreset(state.preset);
@@ -2213,26 +2218,192 @@ function bindSlider(numId, rangeId) {
   });
 }
 
-function init() {
-  /* Collapsible groups: a nav link has to open the group it points into. Otherwise clicking
-   * "机制" scrolls to a closed <details> and looks broken — the heading is there, the content
-   * is not. A direct link that carries a hash is the same case. */
-  const openGroupFor = (hash) => {
-    if (!hash || hash === "#") return;
+/* ------------------------------------------------------------------ *
+ * theme — light is the shipped default; dark is a stored opt-in
+ * ------------------------------------------------------------------ */
+
+const THEME_KEY = "pool4.theme";
+
+function isDarkTheme() {
+  return document.documentElement.getAttribute("data-theme") === "dark";
+}
+
+/** The button always names the theme it switches TO, never the current one.
+ *  Guarded by has(): this runs before the locale files have loaded, and writing a raw
+ *  key into the label at that moment would flash "html.theme.dark" at the reader. */
+function syncThemeButton() {
+  const label = $("theme-label");
+  const btn = $("theme-toggle");
+  const dark = isDarkTheme();
+  const labelKey = dark ? "html.theme.light" : "html.theme.dark";
+  if (label && hasKey(labelKey)) label.textContent = tr(labelKey);
+  if (btn && btn.setAttribute) {
+    const titleKey = dark ? "html.theme.toLight" : "html.theme.toDark";
+    if (hasKey(titleKey)) {
+      const title = tr(titleKey);
+      btn.setAttribute("title", title);
+      btn.setAttribute("aria-label", title);
+    }
+  }
+}
+
+function initTheme() {
+  const btn = $("theme-toggle");
+  if (btn && btn.addEventListener) {
+    btn.addEventListener("click", () => {
+      const next = isDarkTheme() ? "light" : "dark";
+      if (next === "dark") document.documentElement.setAttribute("data-theme", "dark");
+      else document.documentElement.removeAttribute("data-theme");
+      try {
+        localStorage.setItem(THEME_KEY, next);
+      } catch (e) {
+        /* private mode: the choice just does not survive the tab */
+      }
+      syncThemeButton();
+    });
+  }
+  syncThemeButton();
+}
+
+/* ------------------------------------------------------------------ *
+ * collapsible groups + anchor nav
+ *
+ * A nav link has to OPEN the group it points into. Otherwise clicking "机制" scrolls to a
+ * closed <details> and looks broken — the heading is there, the content is not. The first
+ * version opened the group but let the browser do the scrolling, and the scroll was computed
+ * before the newly opened content had laid out, so the group could land off-screen: the
+ * reader saw a jump and no content, which reads as "nothing happened". Opening, then
+ * scrolling on the next frame, is what makes the two agree.
+ * ------------------------------------------------------------------ */
+
+function initGroups() {
+  const openGroupFor = (hash, flash) => {
+    if (!hash || hash === "#") return null;
     let target = null;
     try {
       target = document.querySelector(hash);
-    } catch {
-      return; // a malformed hash is not worth throwing over
+    } catch (e) {
+      return null; // a malformed hash is not worth throwing over
     }
-    const group = target && target.closest("details.group");
-    if (group) group.open = true;
+    const group = target && target.closest ? target.closest("details.group") : null;
+    if (!group) return null;
+    group.open = true;
+    if (flash && group.classList) {
+      group.classList.remove("jumped");
+      void group.offsetWidth; // restart the animation if it is already running
+      group.classList.add("jumped");
+      setTimeout(() => group.classList.remove("jumped"), 1600);
+    }
+    return group;
   };
+
+  const jumpTo = (hash) => {
+    const group = openGroupFor(hash, true);
+    if (!group) return;
+    const scroll = () => {
+      try {
+        group.scrollIntoView({ block: "start", behavior: "smooth" });
+      } catch (e) {
+        if (group.scrollIntoView) group.scrollIntoView();
+      }
+    };
+    if (typeof requestAnimationFrame === "function") requestAnimationFrame(scroll);
+    else scroll();
+  };
+
   for (const a of document.querySelectorAll(".anchors a")) {
-    a.addEventListener("click", () => openGroupFor(a.getAttribute("href")));
+    a.addEventListener("click", (e) => {
+      const href = a.getAttribute("href");
+      if (!href || href.charAt(0) !== "#") return;
+      // Take over from the browser: its jump fires before the opened group has laid out.
+      if (e.preventDefault) e.preventDefault();
+      jumpTo(href);
+      try {
+        history.replaceState(null, "", href);
+      } catch (err) {
+        /* file:// or a sandboxed frame: the URL simply keeps the old hash */
+      }
+    });
   }
-  window.addEventListener("hashchange", () => openGroupFor(location.hash));
-  openGroupFor(location.hash);
+  window.addEventListener("hashchange", () => jumpTo(location.hash));
+  openGroupFor(location.hash, false);
+}
+
+/* ------------------------------------------------------------------ *
+ * "text -> calldata hex" helper for the on-chain message tutorial
+ *
+ * The message board is a plain EOA: a message is the calldata of a zero-value transfer.
+ * Wallets want that calldata as hex, and hand-converting UTF-8 to hex is exactly the step
+ * that stops people. Nothing here leaves the page.
+ * ------------------------------------------------------------------ */
+
+let hexRender = () => {};
+
+function initHexTool() {
+  const input = $("hex-input");
+  const out = $("hex-out");
+  const meta = $("hex-meta");
+  const copy = $("hex-copy");
+  if (!input || !out) return;
+  const enc = typeof TextEncoder === "function" ? new TextEncoder() : null;
+
+  hexRender = () => {
+    const text = input.value || "";
+    if (!text.trim() || !enc) {
+      out.hidden = true;
+      out.textContent = "";
+      if (meta) meta.textContent = "";
+      return;
+    }
+    const bytes = enc.encode(text);
+    let hex = "0x";
+    for (const b of bytes) hex += b.toString(16).padStart(2, "0");
+    out.hidden = false;
+    out.textContent = hex;
+    if (meta) meta.textContent = tr("s.513", { p0: bytes.length, p1: hex.length - 2 });
+  };
+
+  input.addEventListener("input", () => hexRender());
+
+  if (copy && copy.addEventListener) {
+    copy.addEventListener("click", async () => {
+      const hex = out.textContent || "";
+      if (!hex) return;
+      let ok = false;
+      try {
+        if (navigator.clipboard && navigator.clipboard.writeText) {
+          await navigator.clipboard.writeText(hex);
+          ok = true;
+        }
+      } catch (e) {
+        ok = false;
+      }
+      if (!ok) {
+        // The clipboard API needs a secure context; selecting the text is the honest fallback.
+        try {
+          const range = document.createRange();
+          range.selectNodeContents(out);
+          const sel = window.getSelection();
+          sel.removeAllRanges();
+          sel.addRange(range);
+          ok = true;
+        } catch (e) {
+          ok = false;
+        }
+      }
+      copy.textContent = ok ? tr("s.514") : tr("s.515");
+      setTimeout(() => {
+        copy.textContent = tr("html.howto.copy");
+      }, 1800);
+    });
+  }
+  hexRender();
+}
+
+function init() {
+  initTheme();
+  initGroups();
+  initHexTool();
 
   bindSlider("sim-inflow", "sim-inflow-r");
   bindSlider("sim-price", "sim-price-r");
