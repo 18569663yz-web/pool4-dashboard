@@ -1,7 +1,7 @@
 {
   "_note": "build-data.mjs 的离线 fixture。全部数值来自真实事件（data/base.json + data/timeline.json），只是换成了各数据源返回的原始形状：blockscout 的日志对象、eth_getLogs 的日志对象、ABI 解码后的读数。由 scripts/make-base-fixture.mjs 生成。",
-  "l1Head": 26048545,
-  "baseHead": 51726852,
+  "l1Head": 26048696,
+  "baseHead": 51739577,
   "l1BlockTimestamps": {
     "25811484": 1787411327,
     "25828050": 1787610779,
@@ -456,7 +456,10 @@
     "26047739": 1790258015,
     "26048251": 1790264231,
     "26048252": 1790264243,
-    "26048281": 1790264591
+    "26048281": 1790264591,
+    "26048318": 1790265035,
+    "26048632": 1790268839,
+    "26048672": 1790269319
   },
   "baseBlockTimestamps": {
     "46046293": 1778881933,
@@ -511,7 +514,8 @@
     "51442787": 1789674921,
     "51606396": 1790002139,
     "51688143": 1790165633,
-    "51705985": 1790201317
+    "51705985": 1790201317,
+    "51737952": 1790265251
   },
   "baseLogs": [
     {
@@ -1096,6 +1100,17 @@
         "0x000000000000000000000000cefdb5f635bfc913d12e6eac3738e92b1681bd65",
         "0x000000000000000000000000ff0c532fdb8cd566ae169c1cb157ff2bdc83e105"
       ]
+    },
+    {
+      "blockNumber": "0x3157560",
+      "timeStamp": "0x6ab547a3",
+      "logIndex": "0x0",
+      "transactionHash": "0xf3f2c1fe57213bba1f7254416523b4059a9bcc97faf51cac6dbececb08b16f58",
+      "topics": [
+        "0x0ae17d4615863c9cd831849f15f074aebe0227ef5a9804d6c7691e96f255378b",
+        "0x000000000000000000000000cefdb5f635bfc913d12e6eac3738e92b1681bd65",
+        "0x000000000000000000000000ff0c532fdb8cd566ae169c1cb157ff2bdc83e105"
+      ]
     }
   ],
   "l1BridgeLogs": [
@@ -1656,14 +1671,23 @@
         "0xf7f6980d344862edf57320b659126becc0852f64b8347f913547cdb980fe3f25"
       ],
       "data": "0x"
+    },
+    {
+      "blockNumber": "0x18d773e",
+      "logIndex": "0x0",
+      "transactionHash": "0x322c9232f9f7574305f239ad25672e7c949a65101c7213d9960f12e0199907d5",
+      "topics": [
+        "0xf7f6980d344862edf57320b659126becc0852f64b8347f913547cdb980fe3f25"
+      ],
+      "data": "0x"
     }
   ],
   "baseReads": {
     "decimals()": 18,
     "name()": "Fren Pet",
     "symbol()": "Fren Pet",
-    "totalSupply()": "7098777396504311655624590",
-    "adapterBalance()": "3799686761311000000000000",
+    "totalSupply()": "7097711320478761554697583",
+    "adapterBalance()": "3803302835464000000000000",
     "receiverBalance()": "0"
   }
 }

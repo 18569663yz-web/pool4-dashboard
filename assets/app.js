@@ -124,14 +124,28 @@ const ago = (tsSec) => {
  * turn "it may have burned a minute ago" into "it has not burned in 7 hours", which is a worse
  * lie than the one being fixed.
  *
- * While the snapshot is fresh (the normal case) this is a plain "ago": an upper bound whose
- * bound is the measurement itself adds nothing but noise.
+ * WHEN it applies is two conditions, not one, and the difference is not academic. A snapshot
+ * can be minutes old and still be behind the chain: measured live, the page showed "最近一次
+ * 烧毁 86 分钟前" while the chain's newest burn was 9.5 minutes old, and it said so as a plain
+ * reading, because the snapshot age (38 min) was under the banner threshold. The banner's
+ * "is the data stale" question and this line's "is this burn the latest one" question are not
+ * the same question, and only the second one is about this sentence.
+ *
+ * So the qualifier appears when EITHER the snapshot is past its threshold OR the chain has
+ * burned since the snapshot was built. The second condition is what the 90-minute guard in
+ * scripts/check-last-trim.mjs watches for, one level up.
  */
 const snapshotExpired = () => state.snapshotAgeHours !== null && state.snapshotAgeHours > STALE_AFTER_HOURS;
-const agoBounded = (tsSec) => (snapshotExpired() ? tr("stale.orMoreRecent", { p0: ago(tsSec) }) : ago(tsSec));
-/** "data as of 2026-09-24 09:44 UTC" — attached to a frozen figure while the snapshot is stale. */
+/** Has the chain produced a trim the snapshot does not contain? Read from the live block. */
+const snapshotBehindChain = () =>
+  state.timeline && state.timeline.last && state.snap
+    ? Number(state.snap.blockNumber) > Number(state.timeline.last.Trimmed)
+    : false;
+const mayNotBeLatest = () => snapshotExpired() || snapshotBehindChain();
+const agoBounded = (tsSec) => (mayNotBeLatest() ? tr("stale.orMoreRecent", { p0: ago(tsSec) }) : ago(tsSec));
+/** "data as of 2026-09-24 09:44 UTC" — attached to a frozen figure while it may not be latest. */
 const asOf = () =>
-  snapshotExpired() && state.timeline && state.timeline.builtAt
+  mayNotBeLatest() && state.timeline && state.timeline.builtAt
     ? tr("stale.asOf", { p0: fmtDateTime(Date.parse(state.timeline.builtAt) / 1000) })
     : "";
 const iso = (tsSec) => new Date(tsSec * 1000).toISOString().replace("T", " ").slice(0, 19) + " UTC";

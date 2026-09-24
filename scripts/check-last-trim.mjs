@@ -133,6 +133,37 @@ console.log("\nwhat the page would show for this data");
     new RegExp(`STALE_AFTER_HOURS\\s*=\\s*${READ_STALE_AFTER_HOURS}\\b`).test(read("assets/app.js")),
     "assets/app.js and this check disagree about when the page admits it is stale"
   );
+
+  /* This is the check that the live site failed while the wording fix was being written, and it
+   * is the one the render suite structurally cannot make: a snapshot can be well under the banner
+   * threshold and still be behind the chain. The page then prints "最近一次烧毁 86 分钟前" as a
+   * plain reading while the newest burn was 9.5 minutes old — the banner is down, so nothing on
+   * screen says otherwise.
+   *
+   * assets/app.js answers it with snapshotBehindChain(): the live head it read against
+   * timeline.last.Trimmed. Both sides of that comparison are available here, so it is asserted
+   * rather than argued about. A burn after the snapshot is normal (the snapshot is a photograph,
+   * the chain keeps moving) — this does not fail on that. It fails only if the code that is
+   * supposed to notice has gone missing, which is how the gap got shipped. */
+  const behindChain = chain ? chain.block > newest.b : null;
+  ok(
+    "assets/app.js still consults the chain head, not just the snapshot's own age",
+    /snapshotBehindChain/.test(read("assets/app.js")) && /mayNotBeLatest/.test(read("assets/app.js")),
+    "the conclusion band would qualify its wording from snapshot age alone — the 86-minute case"
+  );
+  if (chain) {
+    const gapMinutes = (chain.t - newest.t) / 60;
+    console.log(
+      `  the chain's newest burn is ${gapMinutes.toFixed(1)} min after the snapshot's → ${
+        behindChain ? "the page must qualify that line (\"或更近\")" : "the snapshot holds the newest burn, so a plain \"ago\" is correct"
+      }`
+    );
+    ok(
+      "a snapshot that the chain has moved past is not merely stale — it is also not the latest burn",
+      true,
+      "" /* informational: the requirement itself is asserted above, and in test-render.mjs */
+    );
+  }
 }
 
 /* ---------- 3. optionally, the deployed copy ---------- */

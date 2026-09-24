@@ -291,14 +291,32 @@ ok(
   const pageStale = oldest.hours > 3;
   const bannerShown = content("stale-banner").length > 0;
 
+  /* The SECOND condition. agoBounded() is not driven by snapshot age alone — a snapshot can be
+   * minutes old and still be behind the chain, and that is exactly the state the live site was in
+   * when this was written: the page read "最近一次烧毁 86 分钟前" as a plain fact while the chain's
+   * newest burn was 9.5 minutes old. The banner stayed down (the snapshot was 38 minutes old, well
+   * under the three-hour threshold) and the sentence misled anyway.
+   *
+   * The page decides this from the block number it read live (state.snap.blockNumber vs
+   * state.timeline.last.Trimmed). This suite cannot reach that value — it runs without a live RPC
+   * — and it must NOT substitute data/baseline.json, which is itself a snapshot artefact that goes
+   * stale in the same way. So the assertion is one-sided in the safe direction:
+   *   - when the snapshot is past the threshold, the qualifier is required (the real outage case)
+   *   - otherwise it is allowed but not required, because only the page knows whether the chain
+   *     has burned since, and an upper bound that turns out unnecessary is still true.
+   * The other direction — a stale snapshot rendering as a plain fact — is the bug, and that part
+   * is asserted exactly rather than conditionally. */
+  const shouldQualify = pageStale;
+
   console.log(
-    `\nthe "X ago" in the conclusion band (oldest snapshot: ${oldest.file} at ${oldest.hours.toFixed(1)}h → stale=${pageStale}, banner=${bannerShown ? "shown" : "hidden"})`
+    `\nthe "X ago" in the conclusion band (oldest snapshot: ${oldest.file} at ${oldest.hours.toFixed(1)}h → stale=${pageStale}, qualify required=${shouldQualify}; ` +
+      `the "chain has burned since" path can only be judged live, see check-last-trim.mjs)`
   );
   ok("the suite and the page agree on whether the data is stale", bannerShown === pageStale, `banner ${bannerShown ? "shown" : "hidden"}, oldest ${oldest.file} at ${oldest.hours.toFixed(1)}h`);
   ok(
-    `the burn-activity header is qualifed when the snapshot is stale (stale=${pageStale})`,
-    activityText().includes("或更近") === pageStale,
-    `"${activityText().slice(0, 140)}" — expected ${pageStale ? "a qualifier" : "none"}`
+    `the burn-activity header is qualifed whenever the figure may not be the latest (stale=${pageStale} requires it)`,
+    pageStale ? activityText().includes("或更近") : true,
+    `"${activityText().slice(0, 140)}" — a stale snapshot must never read as a plain "X ago"`
   );
   ok(
     "the wrong direction never appears",
@@ -306,8 +324,8 @@ ok(
     (activityText() + " | " + verdictAnswer()).slice(0, 200)
   );
   ok(
-    `the strip names the moment the data stops at when stale (stale=${pageStale})`,
-    activityText().includes("数据截至") === pageStale,
+    `the strip names the moment the data stops at when the figure may not be the latest (qualify=${shouldQualify})`,
+    activityText().includes("数据截至") === shouldQualify,
     `"${activityText().slice(0, 160)}"`
   );
   ok(

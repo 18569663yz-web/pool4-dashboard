@@ -201,7 +201,12 @@ console.log("\nthe page against the chain");
   // whose trailing digits look like an amount — that fooled an earlier version of this check).
   const chainBridge = e18(d.pendingBridge);
   const pageBridge = num(shown.awaitingFirst);
-  const rel = Math.abs(pageBridge - chainBridge) / chainBridge;
+  /* An empty queue is the common case — BurnExecutor holds nothing most of the time — and it
+   * used to fail this check: dividing by `chainBridge` 0 gave NaN, and NaN < 0.05 is false.
+   * Both sides reading ~0 is agreement, exactly like the pending-trim check above. The bug was
+   * only ever latent because the queue happened to be non-zero when this ran. */
+  const bothEmpty = pageBridge < 0.01 && chainBridge < 0.01;
+  const rel = bothEmpty ? 0 : chainBridge > 0 ? Math.abs(pageBridge - chainBridge) / chainBridge : Math.abs(pageBridge);
   ok(
     `bridge queue agrees within 5% (page ${pageBridge}, chain ${chainBridge.toFixed(4)})`,
     Number.isFinite(pageBridge) && rel < 0.05,
