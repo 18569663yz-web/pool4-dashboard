@@ -5,7 +5,7 @@
 import { writeFileSync, readFileSync, mkdirSync } from "node:fs";
 import { Rpc, encodeCall, decodeReturns, fmt18, fmtUnits, keccak256Hex, utf8ToBytes } from "../lib/evm.js";
 import { ADDR, POOL_IDS } from "../lib/contracts.js";
-import { outPath } from "../lib/snapshot-out.js";
+import { outPath, stagedPath } from "../lib/snapshot-out.js";
 
 const DATA = new URL("../data/", import.meta.url);
 mkdirSync(DATA, { recursive: true });
@@ -67,7 +67,13 @@ const BASE_BURN_RECEIVER = "0xf9d7cbf5bef2f5c9ba93a70f31ddca6457716793";
  * 1. timeline: trims + milestone events, with real timestamps
  * ------------------------------------------------------------------ */
 console.log("building timeline…");
-const hist = JSON.parse(readFileSync(new URL("../data/history.json", import.meta.url), "utf8"));
+// The index THIS RUN produced, not the committed one — see stagedPath() for the failure
+// that made the distinction matter. The line below is also the observability hook: a run
+// that reads the wrong index now says so in its own log.
+const HIST_PATH = stagedPath("history.json");
+const hist = JSON.parse(readFileSync(HIST_PATH, "utf8"));
+console.log(`  index: ${HIST_PATH}`);
+console.log(`  scanTo ${hist.scanTo}, head ${hist.head}, ${hist.totalLogs} logs indexed`);
 const decodeTrim = (l) => {
   const d = l.data.replace(/^0x/, "");
   const w = (i) => BigInt("0x" + d.slice(i * 64, (i + 1) * 64));

@@ -115,7 +115,18 @@ node scripts/refresh-snapshots.mjs                                    # 交给 C
 
 **`data/history.json`（7 MB 原始事件索引）**：它进仓库是为了让 CI 的第一次运行是增量
 而不是全量重扫（16 万区块）。workflow 用 `actions/cache` 在运行之间传递它的更新，**不**把它提交进 git
-—— 否则仓库每小时长 7 MB。
+—— 否则仓库每小时长 7 MB。推论：**仓库里那份是「永远不动的冷启动基线」**，本地跑过索引后它会显示为
+`modified`，这是预期的（不必提交；CI 靠 cache 推进它）。
+
+**「输出走 staging」不等于「输入也走 staging」。** 每个产物先写临时目录，但读的时候要分清两种输入：
+
+| 生成器 | 该读哪份 | 为什么 |
+| --- | --- | --- |
+| `index-logs.mjs` | **上一版** `data/history.json` | 它是增量起点，就该是仓库/缓存里那份 |
+| `build-data.mjs` | **本轮 staging 里刚写出的** `history.json` | 它是 `index-logs` 的下游消费者 |
+
+后者用 `lib/snapshot-out.js` 的 `stagedPath(name)`（优先 staging，缺失才回退 `data/` 并打警告）。
+两者搞混的代价是连续三次 CI 失败，见「已修正的错误」#15。
 
 ## 只在「抓到链上数据后」才执行的分支
 
@@ -207,6 +218,21 @@ head block 26046301 from https://gateway.tenderly.co/public/mainnet
 14. **位置参数会被新选项污染**：`scan-swaps.mjs` 用 `process.argv[2]` 当小时数，
     加上 `--out-dir <tmp>` 后它读到的是 `--out-dir`，`Number("--out-dir")` = NaN，
     于是「扫描 0 笔交易」被当成成功结果写出。选项现在先被剥离。
+15. **下游生成器读了「提交进仓库的旧输入」，而不是本轮 staging 的产物。** `build-data.mjs` 直接
+    `readFileSync(new URL("../data/history.json", …))`，无视 `index-logs.mjs` 几分钟前刚写进 staging 的
+    新索引。而 workflow **故意不提交** `data/history.json`（靠 `actions/cache` 传递），所以仓库里那份是
+    永不前进的冷启动基线：每次定时运行都用同一份冻结索引重建 timeline，得到同一个 `scannedTo`
+    （26044665）和同一个 `trims`（256），而仓库里的 `timeline.json` 是 261 —— `verify-snapshots.mjs`
+    每次都正确地判「history went backwards」，**连续三次失败，数字逐字节相同**。
+    **「两次运行报同一个块高」这个巧合才是线索**：实时端点不可能相隔一小时报同一个 head，而同一轮里
+    不读索引的 `bridge-history.json` 反而通过了它自己的「不回退」检查（head ≥ 26046189）。
+    **看起来像端点滞后，实际是路径。** 修法：`stagedPath()` + `scripts/test-staged-input.mjs`
+    （同时断言「读到 staging」与「回退时答案不同」，证明断言会失败）。
+16. **`git update-index --skip-worktree` 会让 `git status` 撒谎。** `data/history.json` 曾被设上这个位
+    （大概是为了让本地跑完索引后工作区保持干净），于是它本地是 26046305、git 里是 26044665，而
+    `git status` 与 `git diff` 都报「无改动」。定位 #15 时正是被这点误导，先怀疑了 RPC 端点。
+    位已清除：**这个文件的本地改动现在会显示出来，这是有意的** —— 它不进 git 是 CI 的设计
+    （见「快照刷新」），不是因为它没变。
 
 ## 测试
 
@@ -220,7 +246,8 @@ node scripts/test-bridge.mjs         # 24  第二道门趋势判定 + 文案不�
 node scripts/check-html-i18n.mjs     # --  index.html 里会漏进英文模式的中文（应为 0）
 node scripts/check-terminology.mjs   # --  术语表跨语言一致性（15 组在用术语，0 不匹配）
 node scripts/check-summaries.mjs     # --  留言原文与中文摘要并列，供人工校对
-node scripts/test-build-data.mjs     # 20  build-data 全流程离线跑通（fixture 覆盖本机不可达的 Base 段）
+node scripts/test-build-data.mjs     # 21  build-data 全流程离线跑通（fixture 覆盖本机不可达的 Base 段）
+node scripts/test-staged-input.mjs   #  8  下游生成器读本轮 staging 产物，而不是仓库里的旧索引
 node scripts/test-log-index.mjs      # 31  事件索引的增量边界（carry-over / scanTo / 链头异常）
 node scripts/verify-snapshots.mjs    # --  快照形状 + 不能倒退（刷新流程的守门人）
 node scripts/preview-live.mjs        # 16  合成 LIVE 数据，断言恢复后不残留「已停」
