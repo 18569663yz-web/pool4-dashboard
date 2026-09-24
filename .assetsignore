@@ -8,3 +8,14 @@ data/_*.json
 data/strings-i18n*.json
 data/strings-todo.json
 data/README.md
+
+# Build tooling. The refresh job runs these out of the repository; the browser never asks for
+# them. `lib/` is deliberately NOT listed — assets/app.js imports it at runtime.
+scripts/
+package.json
+.github/
+
+# Internal working documents (research notes, runbook). README.md stays: it is the public
+# description of the project, and _headers gives *.md a text/markdown content type.
+NOTES.md
+HANDOFF.md
