@@ -1,4 +1,4 @@
-{
+﻿{
   "_note": "index.html 的静态文案。页面默认中文，所以 zh 与 HTML 初值一致；data-i18n / data-i18n-html 负责在切换到英文时覆盖。",
   "zh": {
     "html.status.block": "区块",
@@ -117,7 +117,13 @@
     "html.howto.warn": "<b>发之前想清楚三件事：</b>留言是<b>公开且永久</b>的，任何人都能读到、且无法删除；你的<b>发送地址会被一起记录</b>，所以请用你愿意公开的地址；本页只是<b>读取</b>这些留言，不代发、不托管、不收费——别把私钥交给任何自称能代发的人。",
     "html.howto.hexLabel": "把要说的话转成十六进制（实时）",
     "html.howto.hexPlaceholder": "例如：gm，pool4 什么时候恢复？",
-    "html.howto.copy": "复制十六进制"
+    "html.howto.copy": "复制十六进制",
+    "html.what.flowTitle": "这台引擎怎么工作",
+    "html.what.flow1": "有人在池子里卖出 IMD",
+    "html.what.flow2": "池子里囤的 IMD 变多，离触发线更近",
+    "html.what.flow3": "一旦超过触发线，超出的那部分被抽走",
+    "html.what.flow4": "<span class=\"burn\">85% 永久销毁</span><span class=\"reward\">15% 分给质押者</span>",
+    "html.what.flowNote": "<b>没人卖，就不会烧。</b>抽走之后还要有人在 Base 链上主动付手续费调用销毁——两道门都不会自己打开。"
   },
   "en": {
     "html.status.block": "Block",
@@ -236,6 +242,12 @@
     "html.howto.warn": "<b>Three things to settle before you send:</b> messages are <b>public and permanent</b> — anyone can read them and nobody can delete them; your <b>sender address is recorded alongside it</b>, so use an address you are happy to have public; this page only <b>reads</b> these messages — it never posts for you, never holds funds, never charges a fee. Do not hand a private key to anyone who claims they will post it for you.",
     "html.howto.hexLabel": "Convert your text to hex (live)",
     "html.howto.hexPlaceholder": "e.g. gm — when does pool4 come back?",
-    "html.howto.copy": "Copy hex"
+    "html.howto.copy": "Copy hex",
+    "html.what.flowTitle": "How this engine works",
+    "html.what.flow1": "Someone sells IMD into the pool",
+    "html.what.flow2": "The pool's IMD pile grows, closer to the line",
+    "html.what.flow3": "Cross the line and the excess is pulled out",
+    "html.what.flow4": "<span class=\"burn\">85% burned for good</span><span class=\"reward\">15% to stakers</span>",
+    "html.what.flowNote": "<b>No sellers, no burns.</b> And after the trim, someone still has to pay the gas to call burn on Base — neither of the two doors opens on its own."
   }
 }

@@ -822,5 +822,11 @@
   "s.522": "Last {p0} burns",
   "s.523": "Last burn {p0}",
   "msg.showAll": "Show all {p0}",
-  "msg.showLess": "Show only the newest"
+  "msg.showLess": "Show only the newest",
+  "html.what.flowTitle": "How this engine works",
+  "html.what.flow1": "Someone sells IMD into the pool",
+  "html.what.flow2": "The pool's IMD pile grows, closer to the line",
+  "html.what.flow3": "Cross the line and the excess is pulled out",
+  "html.what.flow4": "<span class=\"burn\">85% burned for good</span><span class=\"reward\">15% to stakers</span>",
+  "html.what.flowNote": "<b>No sellers, no burns.</b> And after the trim, someone still has to pay the gas to call burn on Base — neither of the two doors opens on its own."
 }

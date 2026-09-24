@@ -822,5 +822,11 @@
   "s.522": "最近 {p0} 次烧毁",
   "s.523": "最近一次烧毁 {p0}",
   "msg.showAll": "显示全部 {p0} 条",
-  "msg.showLess": "只显示最新几条"
+  "msg.showLess": "只显示最新几条",
+  "html.what.flowTitle": "这台引擎怎么工作",
+  "html.what.flow1": "有人在池子里卖出 IMD",
+  "html.what.flow2": "池子里囤的 IMD 变多，离触发线更近",
+  "html.what.flow3": "一旦超过触发线，超出的那部分被抽走",
+  "html.what.flow4": "<span class=\"burn\">85% 永久销毁</span><span class=\"reward\">15% 分给质押者</span>",
+  "html.what.flowNote": "<b>没人卖，就不会烧。</b>抽走之后还要有人在 Base 链上主动付手续费调用销毁——两道门都不会自己打开。"
 }
