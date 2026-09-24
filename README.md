@@ -331,7 +331,7 @@ node scripts/check-summaries.mjs     # 链上留言原文与中文摘要并列�
 node scripts/test-build-data.mjs     # build-data 全流程离线跑通（fixture 覆盖本机不可达的 Base 段）
 node scripts/verify-snapshots.mjs    # 快照形状 + 「不能倒退」（刷新流程的守门人）
 node scripts/preview-live.mjs        # 合成 LIVE 数据，确认恢复后不残留「已停」（16 项）
-node scripts/test-render.mjs         # 无头渲染：每个区块都产出内容 + 切到英文后无中文、无裸键名（128 项）
+node scripts/test-render.mjs         # 无头渲染：每个区块都产出内容 + 切到英文后无中文、无裸键名（129 项）
 node scripts/verify-ownership.mjs    # 三重验证各合约 owner（含 sIMD 的 renounce）
 node scripts/audit-owner-powers.mjs  # 权限清单与链上所有权逐项比对
 node scripts/replay.mjs 3            # 归档回放最近 3 次 trim 并与 totalBurned() 对账
@@ -356,7 +356,7 @@ node scripts/verify-live-site.mjs                                   # 默认 htt
 node scripts/verify-live-site.mjs --url http://127.0.0.1:5173
 ```
 
-当前状态：**401 项断言全部通过**（13 个套件：46 + 26 + 13 + 21 + 8 + 31 + 19 + 16 + 35 + 18 + 24 + 16 + 128，
+当前状态：**402 项断言全部通过**（13 个套件：46 + 26 + 13 + 21 + 8 + 31 + 19 + 16 + 35 + 18 + 24 + 16 + 129，
 另加 `check-html-i18n.mjs` / `check-terminology.mjs` 的覆盖率报告与各取证脚本的自校验）。
 
 `check.mjs` 会审计所有脚本用到的 JSON-RPC 方法，确保只有

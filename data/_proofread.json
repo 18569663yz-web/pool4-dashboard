@@ -18,7 +18,9 @@
     "s.404": "<b>这意味着什么：</b>项目方把公告直接写在链上——官网、API 文档和推特都在，但链上留言带区块时间戳、事后改不了，是最原始的一手记录。",
     "s.405": "<b>共 {p0} 条可读记录</b>，其中 <b>{p1} 条来自项目方</b>、",
     "s.406": "{p0} 条来自社区。下面按时间倒序，原文照录，不做解读。",
-    "s.152": "0 <span class=\"tiny muted\">没有超出触发线的部分——池内 IMD 还没到线，或正好压在线上</span>"
+    "s.152": "0 <span class=\"tiny muted\">没有超出触发线的部分——池内 IMD 还没到线，或正好压在线上</span>",
+    "s.089": "共 <b>{p0} 项</b>提取或冻结类权限仍然有效——包括可以关闭整个池子的 <code>closeMarket()</code>。",
+    "s.090": "合约源码的注释里写着：<i>“the owner can withdraw the entire position at any moment”</i>。"
   },
   "en": {
     "s.341": "book redemption rate, not your yield",
@@ -38,6 +40,8 @@
     "s.404": "<b>What this means:</b> the team announces on-chain — the site, the API docs and Twitter all exist, but an on-chain message carries a block timestamp and cannot be edited afterwards, making it the rawest record there is.",
     "s.405": "<b>{p0} records can be read in total</b>, <b>{p1} of them from the team</b>,",
     "s.406": "{p0} from the community. Newest first below, reproduced verbatim, with no interpretation.",
-    "s.152": "0 <span class=\"tiny muted\">nothing above the line — the pool is either under it or exactly on it</span>"
+    "s.152": "0 <span class=\"tiny muted\">nothing above the line — the pool is either under it or exactly on it</span>",
+    "s.089": "and <b>{p0}</b> withdrawal or freeze powers are still live — including <code>closeMarket()</code>, which can close the entire pool.",
+    "s.090": "The verified source says so in a comment: <i>“the owner can withdraw the entire position at any moment”</i>."
   }
 }

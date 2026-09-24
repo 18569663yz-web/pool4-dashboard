@@ -661,31 +661,33 @@ function renderSummary() {
   }
   setHtml("sum-headline", headline);
   // <title> must carry BOTH the conclusion (P0) and the active language (i18n).
-  title =
-    d.state === "LIVE"
-      ? tr("title.live")
-      : atLine
-        ? tr("title.atLine")
-        : d.state === "CRITICAL"
-          ? tr("title.critical")
-          : days !== null && days >= 1
-            ? tr("title.stopped", { count: days })
-            : tr("title.critical");
+  // Same three-way split as the headline, for the same reason: the tab, the sticky subtitle
+  // and the state badge are read side by side, and any of them claiming "正在工作" while the
+  // others say "贴着触发线" makes the page look like it disagrees with itself.
+  const showsLive = d.state === "LIVE" && !atLine && !!pendingTxt;
+  title = showsLive
+    ? tr("title.live")
+    : atLine || d.state === "LIVE"
+      ? tr("title.atLine")
+      : d.state === "CRITICAL"
+        ? tr("title.critical")
+        : days !== null && days >= 1
+          ? tr("title.stopped", { count: days })
+          : tr("title.critical");
   if (document.title !== title) document.title = title;
   const pt = $("page-title");
   if (pt) pt.textContent = tr("meta.title");
   const ps = $("page-sub");
   if (ps) {
-    ps.textContent =
-      d.state === "LIVE"
-        ? tr("subtitle.live")
-        : atLine
-          ? tr("subtitle.atLine")
-          : d.state === "CRITICAL"
-            ? tr("subtitle.critical")
-            : days !== null
-              ? tr("subtitle.stopped", { count: days })
-              : tr("subtitle.critical");
+    ps.textContent = showsLive
+      ? tr("subtitle.live")
+      : atLine || d.state === "LIVE"
+        ? tr("subtitle.atLine")
+        : d.state === "CRITICAL"
+          ? tr("subtitle.critical")
+          : days !== null
+            ? tr("subtitle.stopped", { count: days })
+            : tr("subtitle.critical");
   }
   const sum = $("summary");
   if (sum) sum.className = "summary" + (d.state === "LIVE" || atLine ? " calm" : "");
@@ -755,16 +757,18 @@ function renderSummary() {
   }
   setHtml("sum-impact", impact.map((x) => `<li>${x}</li>`).join(""));
 
-  // recovery
+  // recovery — atLine first, for the same reason as the headline: "已经具备触发条件" and
+  // "贴着触发线" describe one situation, and the block should not switch wording based on
+  // which of the two equivalent readings the contract happened to report.
   let recovery;
-  if (d.state === "LIVE") {
-    recovery = tr("s.075");
-  } else if (atLine) {
+  if (atLine) {
     recovery =
       tr("s.076", { p0: fmt18(d.held, 2), p1: fmt18(d.cap, 2) }) +
       tr("s.077") +
       tr("s.078") +
       tr("s.079");
+  } else if (d.state === "LIVE") {
+    recovery = tr("s.075");
   } else {
     const parts = [];
     parts.push(

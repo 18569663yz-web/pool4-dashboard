@@ -403,8 +403,11 @@ details > div { padding-top: 8px; }
 .sum-block ul { margin: 0; padding-left: 17px; }
 .sum-block li { font-size: 14px; margin-bottom: 4px; }
 .sum-block p { margin: 0; font-size: 14px; }
-.sum-block.danger { border-color: var(--dead-line); background: var(--dead-bg); }
-.sum-block.danger h3 { color: var(--dead); }
+/* There used to be a `.sum-block.danger` variant here — red border, red wash, red heading —
+ * wrapped around the ownership card in the summary. Every fact in that card is unchanged and
+ * still on the page, but presenting it in alarm-red in the first screenful reads as an
+ * accusation rather than a reading, and the project team is one of this page's readers. The
+ * card is an ordinary block now; the evidence lives in the 权限 group where it belongs. */
 
 .sum-jump {
   margin: 16px 0 0; font-size: 12.5px; color: var(--fg-3); text-align: center;
