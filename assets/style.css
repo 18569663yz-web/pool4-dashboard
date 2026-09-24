@@ -43,6 +43,13 @@ code, .mono { font-family: var(--mono); font-size: 0.92em; }
 
 .wrap { max-width: 1080px; margin: 0 auto; padding: 0 16px 80px; }
 
+/* The header is sticky, so an anchor jump lands with its target underneath the header — the
+ * heading the reader just clicked is hidden behind it and the section looks empty. Reserving
+ * the header's height as scroll padding fixes every anchor at once. */
+html { scroll-padding-top: 124px; }
+/* On a phone the header wraps onto more lines, so the reservation has to grow with it. */
+@media (max-width: 700px) { html { scroll-padding-top: 168px; } }
+
 header.top {
   position: sticky; top: 0; z-index: 50;
   background: rgba(10, 11, 13, 0.92);
@@ -419,25 +426,46 @@ details.tech > .note { margin: 12px 14px; }
 details.tech > .scroll-x { padding: 12px 14px; }
 
 /* ---------- collapsible section groups ---------- *
- * The five top-level groups reuse the .band look for their summary, so the page still reads
- * as five labelled sections — they are simply closed by default now, which is what stops it
- * from being one continuous 16-section scroll. */
+ * The five top-level groups are closed by default, which is what stops the page from being
+ * one continuous 16-section scroll. The summary is styled as an obvious clickable bar rather
+ * than a hairline caption: the first version kept the .band look, and it was impossible to
+ * tell the sections were collapsible at all. */
 
 details.group > summary.band {
-  margin: 34px 0 0; padding: 6px 0; list-style: none;
-  cursor: pointer; user-select: none;
+  margin: 14px 0 0; padding: 11px 15px;
+  list-style: none; cursor: pointer; user-select: none;
+  border: 1px solid var(--line); border-radius: 10px; background: var(--bg-2);
+  transition: background 0.15s ease, border-color 0.15s ease;
 }
 details.group > summary.band::-webkit-details-marker { display: none; }
-details.group > summary.band:hover span { color: var(--fg-2); }
+/* No trailing rule: the bar's own border does that job now. */
+details.group > summary.band::after { display: none; }
 details.group > summary.band::before {
-  content: "▸"; flex: 0 0 auto; font-size: 11px; color: var(--fg-3);
-  transition: transform 0.15s ease;
+  content: "▸"; flex: 0 0 auto; font-size: 13px; line-height: 1; color: var(--fg-2);
+  transition: transform 0.18s ease;
 }
 details.group[open] > summary.band::before { transform: rotate(90deg); }
+details.group > summary.band:hover { background: var(--bg-3); border-color: var(--line-2); }
+details.group[open] > summary.band { background: var(--bg-3); border-color: var(--line-2); }
+details.group > summary.band span { font-size: 12px; color: var(--fg-2); }
 /* The first group is the headline, so it sits closer to the header than the rest. */
 details.group:first-of-type > summary.band { margin-top: 18px; }
 /* Sections already carry their own top margin; trim the doubled gap inside a group. */
 details.group > section:first-of-type { margin-top: 12px; }
+
+/* ---------- mascot ---------- *
+ * On a wide screen the 1080px column leaves a lot of empty space on either side. The coin
+ * fills the right-hand one, and only appears when there is genuinely room for it — never
+ * overlapping the column, never in the way on a laptop or a phone. */
+.mascot { display: none; }
+@media (min-width: 1320px) {
+  .mascot {
+    display: block; position: fixed; right: 40px; bottom: 8vh;
+    width: 104px; height: 104px; border-radius: 50%;
+    pointer-events: none; z-index: 5; opacity: 0.94;
+    filter: drop-shadow(0 10px 26px rgba(0, 0, 0, 0.6));
+  }
+}
 
 /* ---------- verbatim on-chain quotes ---------- */
 
