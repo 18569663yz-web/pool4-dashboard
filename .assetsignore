@@ -7,3 +7,4 @@ shots/
 data/_*.json
 data/strings-i18n*.json
 data/strings-todo.json
+data/README.md
