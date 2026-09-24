@@ -43,6 +43,30 @@ if (!existsSync(join(ROOT, FIXTURE))) {
 }
 const fixture = JSON.parse(readFileSync(join(ROOT, FIXTURE), "utf8"));
 
+/* The fixture is derived from data/history.json, so a refresh makes it stale: the newest
+ * event blocks have no timestamps in it, and the test would then fail for a stale fixture
+ * rather than a real bug. Check that first and say exactly what to run. */
+{
+  const hist = JSON.parse(readFileSync(join(ROOT, "data/history.json"), "utf8"));
+  const wanted = new Set();
+  for (const e of Object.values(hist.events || {})) {
+    const logs = e.logs || [];
+    if (logs.length) {
+      wanted.add(parseInt(logs[0].blockNumber, 16));
+      wanted.add(parseInt(logs[logs.length - 1].blockNumber, 16));
+    }
+  }
+  for (const name of ["Trimmed", "BackstopSettled"]) {
+    for (const l of hist.events?.[name]?.logs || []) wanted.add(parseInt(l.blockNumber, 16));
+  }
+  const missing = [...wanted].filter((b) => fixture.l1BlockTimestamps?.[b] === undefined);
+  ok(
+    `fixture covers every event block in history.json (${missing.length} missing)`,
+    missing.length === 0,
+    `history.json moved on since the fixture was built — run: npm run fixture`
+  );
+}
+
 console.log("build-data.mjs, offline (fixture)");
 const tmp = mkdtempSync(join(tmpdir(), "pool4-builddata-"));
 try {

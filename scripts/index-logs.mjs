@@ -11,6 +11,7 @@ import { writeFileSync, mkdirSync, readFileSync } from "node:fs";
 import { Rpc, keccak256Hex, utf8ToBytes, rpcEndpoints } from "../lib/evm.js";
 import { ADDR } from "../lib/contracts.js";
 import { outPath } from "../lib/snapshot-out.js";
+import { mergeEventIndex, resumePoint, classifyHead, nextScanTo, logBlock } from "../lib/log-index.js";
 
 // Input and output are separate paths on purpose: --out-dir redirects where the index is
 // written (so the refresh job can validate it first), while the incremental scan still
@@ -85,8 +86,6 @@ async function getLogs(from, to, attempt = 0) {
 const args = process.argv.slice(2);
 const force = args.includes("--force");
 const fromArg = args.find((a) => a.startsWith("--from="));
-const head = await pool.blockNumber();
-console.log("head block", head);
 
 let db = { address: ADDR.hook, events: {} };
 if (!force) {
@@ -95,23 +94,48 @@ if (!force) {
   } catch {}
 }
 
-/* Incremental by design.
+/* Incremental by design — see lib/log-index.js for the merge rules and their boundaries.
  *
  * `scanFrom` is the floor of the whole index (just before MarketOpened) and never moves;
- * resuming from it would rescan ~160k blocks every hour. The previous index's `scanTo` is
- * where the last run actually stopped, so that is where this one picks up — minus a small
- * margin, so a reorg near the tip cannot leave a hole. Everything older than the resume
- * point is carried over from the previous file, which is why `totalLogs` counts the merged
- * index rather than this run's windows (the page quotes it as "the whole lifecycle"). */
+ * the resume point is the previous `scanTo` minus a reorg margin. Everything this scan does
+ * not cover is carried over, which is why `totalLogs` counts the merged index rather than
+ * this run's windows (the page quotes it as "the whole lifecycle"). */
 const FLOOR = 25887000; // just before MarketOpened
 const RESCAN_MARGIN = 200;
 const prevEvents = db.events || {};
 const prevScanTo = Number(db.scanTo) || 0;
+
+// Ask every endpoint and take the highest head: `blockNumber()` returns whichever node
+// answers first, and a lagging one would silently define how far back we scan.
+const headInfo = await pool.highestBlockNumber();
+const head = headInfo.n;
+console.log(`head block ${head} from ${headInfo.url}`);
+if (headInfo.endpoints > 1) {
+  console.log(`  ${headInfo.endpoints} endpoints answered; spread ${headInfo.spread} block(s) between the highest and the lowest`);
+}
+if (headInfo.spread > RESCAN_MARGIN) {
+  console.log(`  note: that spread is larger than the ${RESCAN_MARGIN}-block rescan margin — a lagging endpoint would have cost us real range`);
+}
+
+// A head behind the indexed height is not lag beyond the tolerance: it is the wrong chain,
+// a broken endpoint or a corrupt index. Rewriting history with a shorter one is the worst
+// possible response, so stop instead.
+const headClass = classifyHead({ head, prevScanTo, tolerance: RESCAN_MARGIN });
+if (headClass === "behind") {
+  console.error(
+    `\nrefusing to update the index: head ${head} is ${prevScanTo - head} blocks BEHIND the indexed height ${prevScanTo}`
+  );
+  console.error("endpoint lag is a few blocks; this is a different chain, a broken endpoint or a corrupt index.");
+  console.error("data/history.json was not touched.");
+  process.exit(1);
+}
+if (headClass === "lagging") {
+  console.warn(`note: head ${head} is ${prevScanTo - head} blocks behind the indexed height ${prevScanTo} — endpoint lag; the index keeps its previous height`);
+}
+
 const start = fromArg
   ? Number(fromArg.slice(7))
-  : prevScanTo
-    ? Math.max(FLOOR, prevScanTo - RESCAN_MARGIN)
-    : Number(db.scanFrom) || FLOOR;
+  : resumePoint({ prevScanTo, floor: FLOOR, margin: RESCAN_MARGIN, force: !!force });
 console.log(
   prevScanTo && !fromArg
     ? `resuming at block ${start} (previous index reached ${prevScanTo}; re-reading ${RESCAN_MARGIN} blocks for reorg safety)`
@@ -136,53 +160,26 @@ for (let from = start; from <= head; from += 1000) {
   await sleep(60);
 }
 
-// bucket by event name — fresh windows plus everything the previous index already held
-// below the resume point (the two sets cannot overlap by construction).
-const events = {};
-for (const [name, t0hex] of Object.entries(TOPIC0)) {
-  events[name] = { topic0: t0hex, signature: TOPICS[name], logs: [] };
-}
-let carried = 0;
-for (const [name, prev] of Object.entries(prevEvents)) {
-  if (!events[name]) continue;
-  for (const l of prev.logs || []) {
-    if (parseInt(l.blockNumber, 16) < start) {
-      events[name].logs.push(l);
-      carried++;
-    }
-  }
-}
+// Merge: fresh windows plus everything this scan did not cover. The boundary rule lives in
+// lib/log-index.js — including the case where `head < start` (the loop above does not run at
+// all) and a naive `block < start` test would drop the whole previous range.
+const { events, carried, unknown, indexedLogs } = mergeEventIndex({
+  topic0ByName: TOPIC0,
+  signatures: TOPICS,
+  nameByTopic: (t) => BY_TOPIC[t],
+  prevEvents,
+  freshLogs: all,
+  start,
+  head,
+});
 
-let unknown = 0;
-for (const l of all) {
-  const name = BY_TOPIC[(l.topics[0] || "").toLowerCase()];
-  if (!name) {
-    unknown++;
-    continue;
-  }
-  events[name].logs.push(l);
-}
-
-// Defensive: (blockNumber, logIndex) is unique chain-wide, so this can only fire if a
-// previous index was written with overlapping windows.
-const seen = new Set();
-for (const e of Object.values(events)) {
-  e.logs = e.logs.filter((l) => {
-    const key = l.blockNumber + ":" + (l.logIndex || "0x0");
-    if (seen.has(key)) return false;
-    seen.add(key);
-    return true;
-  });
-  e.logs.sort((a, b) => parseInt(a.blockNumber, 16) - parseInt(b.blockNumber, 16) || parseInt(a.logIndex, 16) - parseInt(b.logIndex, 16));
-  e.count = e.logs.length;
-}
-
-const indexedLogs = Object.values(events).reduce((n, e) => n + e.count, 0);
+// The index may not move backwards, even when the head is momentarily lower.
+const scanTo = nextScanTo(head, prevScanTo);
 db = {
   address: ADDR.hook,
   head,
   scanFrom: FLOOR,
-  scanTo: head,
+  scanTo,
   fetchedAt: new Date().toISOString(),
   totalLogs: indexedLogs,
   scannedLogs: all.length,
@@ -193,11 +190,11 @@ db = {
 writeFileSync(OUT, JSON.stringify(db, null, 2));
 
 console.log(`\nscanned ${all.length} logs in ${((Date.now() - t0) / 1000).toFixed(1)}s over ${done} windows (${unknown} with unknown topics)`);
-console.log(`index now holds ${indexedLogs} logs (${carried} carried over, ${indexedLogs - carried} from this scan)`);
+console.log(`index now holds ${indexedLogs} logs (${carried} carried over, ${indexedLogs - carried} from this scan), scanTo ${scanTo}`);
 for (const [name, e] of Object.entries(events)) {
   if (!e.count) continue;
-  const f = parseInt(e.logs[0].blockNumber, 16);
-  const l = parseInt(e.logs[e.logs.length - 1].blockNumber, 16);
+  const f = logBlock(e.logs[0]);
+  const l = logBlock(e.logs[e.logs.length - 1]);
   console.log(`  ${name.padEnd(24)} ${String(e.count).padStart(5)}  blocks ${f}..${l}`);
 }
 console.log("\nwrote history.json");

@@ -143,7 +143,7 @@ node scripts/refresh-snapshots.mjs                                    # 交给 C
 | `collect.mjs` | 逐项读数失败（`errors` 分支） | ✅ | RPC 抖动时 |
 | | Base 侧读数 | ✅ | Base RPC 可达（与 blockscout 不同） |
 
-排查中顺手修掉的两个同类问题：
+排查中顺手修掉的同类问题：
 
 1. **`fetch-bridge-history.mjs` 扫描失败时会写出一份「看起来正常」的快照**：`logs` 为空 → 所有历史点
    都等于今天的余额 → 页面显示「没有变化」。现在 0 条 transfer 直接退出非零，刷新保留旧快照。
@@ -151,6 +151,30 @@ node scripts/refresh-snapshots.mjs                                    # 交给 C
    而不是上次停下的 `scanTo`。现在从 `scanTo − 200` 续扫（200 区块的重组余量），1 个窗口、约 1 秒；
    `totalLogs` 仍是**整份索引**的条数（页面拿它说「扫描了 N 条」），另加 `scannedLogs` / `carriedLogs`
    两个诊断字段。
+
+### 增量索引的三条边界规则
+
+合并逻辑抽在 `lib/log-index.js`，由 `scripts/test-log-index.mjs`（31 项）逐条覆盖。三条都不是格式问题，
+而是数据丢失边界：
+
+| 规则 | 写法 | 漏掉会怎样 |
+| --- | --- | --- |
+| **carry-over 用「实际扫描覆盖的区间」** | `block < start \|\| block > head` 才保留 | 只写 `block < start`：当 `head < start` 时扫描循环**一次都不执行**，而那段旧日志已被排除在 carry 之外 → 索引静默少一截。测试用例：`start=250, head=240` 必须保留全部 |
+| **`scanTo` 不能倒退** | `nextScanTo(head, prevScanTo) = max(head, prevScanTo)` | 链头瞬时偏低（端点滞后 / 重组）会让下次从更低处续扫，也谎报索引覆盖范围 |
+| **`head < scanTo − 200` 判定为异常** | `classifyHead()` → `ok` / `lagging` / `behind` | 端点滞后几个区块是常态（保留 `scanTo` 继续即可，容差 200）；差出几百上千区块不是滞后，是选错了链或端点坏了 —— 这时**保留旧索引并非零退出**，绝不重写历史 |
+
+### 端点选择：为什么不问「第一个答复的」
+
+`Rpc.blockNumber()` 返回**第一个答复的端点**的高度。对仪表盘没问题，对索引器是个陷阱：一个落后几千区块
+的节点也会正常答复，于是「本次扫描范围」由一个坏端点决定。索引器现在用
+`Rpc.highestBlockNumber()`：**并发问所有端点，取最高的那个**，日志里打印来源与端点间高度差：
+
+```
+head block 26046301 from https://gateway.tenderly.co/public/mainnet
+  4 endpoints answered; spread 0 block(s) between the highest and the lowest
+```
+
+高度差大于 200（重组余量）时会额外提示 —— 那说明若按「第一个答复」走，这次就真的会少扫一段。
 
 ## 已修正的错误（不要再犯）
 
@@ -197,6 +221,7 @@ node scripts/check-html-i18n.mjs     # --  index.html 里会漏进英文模式�
 node scripts/check-terminology.mjs   # --  术语表跨语言一致性（15 组在用术语，0 不匹配）
 node scripts/check-summaries.mjs     # --  留言原文与中文摘要并列，供人工校对
 node scripts/test-build-data.mjs     # 20  build-data 全流程离线跑通（fixture 覆盖本机不可达的 Base 段）
+node scripts/test-log-index.mjs      # 31  事件索引的增量边界（carry-over / scanTo / 链头异常）
 node scripts/verify-snapshots.mjs    # --  快照形状 + 不能倒退（刷新流程的守门人）
 node scripts/preview-live.mjs        # 16  合成 LIVE 数据，断言恢复后不残留「已停」
 node scripts/test-render.mjs         # 116 无头渲染（DOM stub + 真实网络 + 中英切换后零中文/零裸键名）
