@@ -246,8 +246,87 @@ ok(
   (visual.match(/data-tip="/g) || []).length === actBars && /data-tip="区块 [\d,]+ · 烧毁 [\d,.]+ IMD/.test(visual),
   `${(visual.match(/data-tip="/g) || []).length} of ${actBars} bars`
 );
-// `held > cap` can be true while floor(L * excess / held) still rounds to zero. Saying
-// "0.00 IMD waiting to be burned" in that state reads as a broken page.
+
+/* ------------------------------------------------------------------ *
+ * the frozen-timestamp wording
+ *
+ * state.timeline.trims carries block times, so every "X ago" in the conclusion band is
+ * measured against a snapshot. If the refresh job stops, that boundary stays put while
+ * Date.now() keeps moving: on 2026-09-24 the newest burn was 25 minutes old and the page
+ * spent six hours saying "7.0 hours ago", with the bars beside it just as frozen.
+ *
+ * The direction is the part worth guarding. The snapshot's newest event is at or before the
+ * chain's newest event, so now − T_snapshot is an UPPER BOUND — "7.0h ago or more recent".
+ * "At least 7.0h ago" would turn "it may have burned a minute ago" into "it has not burned in
+ * seven hours", which is worse than the bug. Both readings are asserted below: the stale one
+ * asks the live DOM, and the fresh one is the counter-check that the qualifier is conditional.
+ * ------------------------------------------------------------------ */
+{
+  const stripActivity = (html) => String(html).replace(/<[^>]+>/g, " ").replace(/\s+/g, " ").trim();
+  const activityText = () => {
+    const s = stripActivity(content("sum-visual"));
+    const i = s.indexOf("次烧毁");
+    return i >= 0 ? s.slice(i) : s;
+  };
+  const verdictAnswer = () => text("v-answer");
+  const hoursSince = (t) => (Date.now() - t) / 3_600_000;
+
+  /* The page's rule, recomputed here from the same files it fetches: the OLDEST snapshot
+   * decides, using lib/snapshots.js's field list. Reproducing "oldest across all five" rather
+   * than just the timeline matters — right now timeline.json is minutes old while
+   * baseline.json's own number has already drifted past the threshold, and only the page's
+   * own answer can settle which one the wording should follow. */
+  const snapshotAges = ["timeline", "base", "volume", "messages", "bridge-history", "baseline"]
+    .map((f) => {
+      try {
+        const j = JSON.parse(readFileSync(ROOT + `data/${f}.json`, "utf8"));
+        const v = j.builtAt || j.scannedAt || j.fetchedAt || j.generatedAt;
+        if (typeof v === "number" && v > 1e9) return { file: f, hours: hoursSince(v * 1000) };
+        if (typeof v === "string" && v) return { file: f, hours: hoursSince(Date.parse(v)) };
+      } catch {}
+      return null;
+    })
+    .filter(Boolean);
+  const oldest = snapshotAges.reduce((a, b) => (a.hours >= b.hours ? a : b));
+  const pageStale = oldest.hours > 3;
+  const bannerShown = content("stale-banner").length > 0;
+
+  console.log(
+    `\nthe "X ago" in the conclusion band (oldest snapshot: ${oldest.file} at ${oldest.hours.toFixed(1)}h → stale=${pageStale}, banner=${bannerShown ? "shown" : "hidden"})`
+  );
+  ok("the suite and the page agree on whether the data is stale", bannerShown === pageStale, `banner ${bannerShown ? "shown" : "hidden"}, oldest ${oldest.file} at ${oldest.hours.toFixed(1)}h`);
+  ok(
+    `the burn-activity header is qualifed when the snapshot is stale (stale=${pageStale})`,
+    activityText().includes("或更近") === pageStale,
+    `"${activityText().slice(0, 140)}" — expected ${pageStale ? "a qualifier" : "none"}`
+  );
+  ok(
+    "the wrong direction never appears",
+    !/至少\s*[\d.]+\s*小时前/.test(activityText() + verdictAnswer()) && !/at least\s*[\d.]+h?\s*ago/i.test(activityText() + verdictAnswer()),
+    (activityText() + " | " + verdictAnswer()).slice(0, 200)
+  );
+  ok(
+    `the strip names the moment the data stops at when stale (stale=${pageStale})`,
+    activityText().includes("数据截至") === pageStale,
+    `"${activityText().slice(0, 160)}"`
+  );
+  ok(
+    "the bars and the sentence carry the same qualifier, so they cannot contradict each other",
+    !/或更近/.test(activityText()) || /数据截至/.test(activityText()),
+    `"${activityText().slice(0, 160)}"`
+  );
+
+  /* The counter-check. agoBounded() only qualifies while the snapshot is stale, so a fresh
+   * snapshot must render plainly. The suite cannot rewrite the module's own clock here, so it
+   * asserts the invariant that survives either state: the qualifier never appears without the
+   * "as of" note that makes it meaningful, i.e. the pair is all-or-nothing. */
+  ok(
+    "the qualifier and the as-of note are all-or-nothing, never a bare upper bound",
+    /或更近/.test(activityText()) === /数据截至/.test(activityText()),
+    `"${activityText().slice(0, 160)}"`
+  );
+}
+
 ok("the headline never claims zero is waiting to be burned", !/0\.00 IMD/.test(text("sum-headline")), text("sum-headline"));
 
 // State-independent assertions: read what the page actually says, then check it is

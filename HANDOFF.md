@@ -105,9 +105,17 @@ node -e "const fs=require('fs');const g=p=>fs.readFileSync(p,'utf8').split(/\r?\
 
 ## 快照刷新（GitHub Actions）
 
-页面上所有「历史」——烧毁曲线、24h/7d 趋势、链上留言时间线——都来自 `data/` 下的预生成 JSON。
-它们由 `.github/workflows/refresh-snapshots.yml` **每 2 小时**刷新一次（cron `17 */2 * * *`，避开整点；
-也支持 `workflow_dispatch` 手动触发）。
+页面上所有「历史」——烧毁曲线、24h/7d 趋势、链上留言时间线，以及「结论」区的**「最近一次烧毁」时间**和
+**「最近 24 次烧毁」柱状图**——都来自 `data/` 下的预生成 JSON。
+它们由 `.github/workflows/refresh-snapshots.yml` **每小时**刷新一次（cron `17 * * * *`，避开整点；
+也支持 `workflow_dispatch` 手动触发）。<!-- 这里曾写成「每 2 小时 / 17 */2 * * *」，与 workflow 不符 -->
+
+> ⚠️ **cron 不保证按点触发，新鲜度不能全押在它身上。**
+> GitHub Actions 的 `schedule` 是**尽力而为的队列**，不是定时器：可以延迟，也可以整点跳过。
+> 2026-09-24 那次，09:44 到 15:05 的五个多小时里 `schedule` **只入队了 1 次**（本该有 5 次），
+> 而且那一次还失败了 —— 于是 `data/` 冻结了 6 小时，页面上一句话都没说（见「已修正的错误」#19）。
+> 所以：`scripts/check-last-trim.mjs` 负责在**产物层**发现停摆，页面的过期横幅负责在**读的人面前**承认它。
+> 两者都必要，因为它们回答的不是同一个问题（「还新鲜吗」vs「这份读数是什么时候的」）。
 
 **为什么可以每小时**：托管在 Cloudflare **Workers**（不是 Pages），两者的免费额度计费方式不同 ——
 Pages 按**构建次数**（500 次/月，每小时一次 ≈ 730 次会超），Workers Builds 按**构建分钟**
@@ -297,6 +305,32 @@ head block 26046301 from https://gateway.tenderly.co/public/mainnet
     修法：发布逻辑提取到 `lib/snapshot-promote.js`，遍历 `[...outputs, ...optionalOutputs]`；
     `scripts/test-promote.mjs`（16 条）里有一条直接断言「旧代码用的 outputs-only 清单会漏掉
     base.json」。**与 #15、#17 同类：某个步骤在沉默中降级，而不是报错。**
+19. **「静默陈旧」：页面显示的是一个看起来实时、实则冻结的时间。**
+    线上「结论」区写着「最近一次烧毁 **7.0 小时前**」，柱状图最后一根停在 08:54 UTC —— 而链上
+    **25 分钟前**刚烧过，那 7 小时里实际烧了 6 次（合计约 193.62 IMD）。同一屏的触发线 `9,459.61`、
+    区块号、「贴着触发线」都来自浏览器直连 RPC，**全是对的**：错的只有**快照派生**的那部分。
+    **数字本身是自洽的，所以它骗过了所有人**：分子 `Date.now()` 在走，分母（快照里的
+    `trims[-1].t = 1790240087`）冻着，「X 小时前」只会越涨越大，且**永远不会自己变新**。
+    三件事叠加才造成它：
+    - **CI 侧**：该 workflow 总共只跑过 4 次；09:44 → 15:05 五个多小时里 `schedule` 只入队 **1 次**
+      （run #7，`Refresh (staged and verified)` 失败），所以 `data/` 停在 09:44 那版。
+    - **代码侧**：`build-data.mjs` 的 base 段抛错（Blockscout 不可达）后异常逃逸，**连累同一进程里
+      已经成功写进 staging 的 `timeline.json` 一起被丢弃**。而 `refresh-snapshots.mjs` 早就为这种情况
+      准备了降级路径（`optionalOutputs: ["base.json"]` → 「the published copy stays in place」），
+      **生成器硬崩，让这条路径根本没机会生效**。修法：base 段包 try/catch，失败只打醒目警告、
+      不写 base.json，**timeline 照常产出、退出码 0**（`scripts/test-base-isolation.mjs`，
+      并反向验证：把隔离关掉，同一条命令必须非零退出且 timeline 落不了盘）。
+    - **文案侧**：`stale.banner` 只列了「历史曲线 / 24h/7d 趋势 / 链上留言时间线」，**没点名**
+      「最近一次烧毁」与柱状图 —— 而这两样恰好以实时口吻印在「结论」区，这正是误导产生的地方。
+    **修法（数字层，P1-1）**：问题不在 `ago()`（纯函数，没有 bug），在于**拿实时时钟渲染冻结的时间戳**。
+    现在快照过期时改成上界措辞「**{p0}或更近（快照未含之后的烧毁）**」并附「数据截至 …」，
+    柱状图表头同源同改。
+    **方向千万别写反**：快照最后一条 `T_s` 一定早于或等于链上真实最后一条 `T_r`（链上只往后长），
+    所以 `now − T_s` 是真实间隔的**上界** → 正确说法是「7.0 小时前**或更近**」，**不是**「至少 7.0 小时前」。
+    写反了就把「可能刚刚烧过」说成「至少 7 小时没烧」，方向性错误比原 bug 更糟。
+    **守卫**：`scripts/check-last-trim.mjs` 直连 RPC 查最新 `Trimmed`，断言快照不比链上旧超过 **90 分钟**
+    （= 一个快照周期 + 缓冲）。验证过它**会红**：换上修复前那份冻结快照，立刻报 `402.4 min > 90 min`。
+    **与 #15、#17、#18 同类：某个东西在沉默中降级。** 区别是这次降级的不是文件，而是**读到的数字**。
 
 ## 测试
 
@@ -311,16 +345,20 @@ node scripts/check-html-i18n.mjs     # --  index.html 里会漏进英文模式�
 node scripts/check-terminology.mjs   # --  术语表跨语言一致性（15 组在用术语，0 不匹配）
 node scripts/check-summaries.mjs     # --  留言原文与中文摘要并列，供人工校对
 node scripts/test-build-data.mjs     # 21  build-data 全流程离线跑通（fixture 覆盖本机不可达的 Base 段）
+node scripts/test-base-isolation.mjs # 14  base 失败不连坐 timeline（含「关掉隔离必须失败」的反证）
+node scripts/check-last-trim.mjs     #  4  快照 vs 链上最新 Trimmed（>90 分钟即红，见 #19）
 node scripts/test-staged-input.mjs   #  8  下游生成器读本轮 staging 产物，而不是仓库里的旧索引
 node scripts/test-log-index.mjs      # 31  事件索引的增量边界（carry-over / scanTo / 链头异常）
 node scripts/test-log-scan.mjs       # 19  L1 日志分窗扫描：重试、失败必上报、绝不静默丢窗口
 node scripts/test-promote.mjs        # 16  发布清单（optionalOutputs 必须与 outputs 一起发布）
 node scripts/verify-snapshots.mjs    # --  快照形状 + 不能倒退（刷新流程的守门人）
 node scripts/preview-live.mjs        # 16  合成 LIVE 数据，断言恢复后不残留「已停」
-node scripts/test-render.mjs         # 129 无头渲染（DOM stub + 真实网络 + 中英切换后零中文/零裸键名）
+node scripts/test-render.mjs         # 135 无头渲染（DOM stub + 真实网络 + 中英切换后零中文/零裸键名）
 ```
 
 `npm test` 依次跑上面全部（除取证类与 `verify-snapshots`，后者需要一份待校验的产物）。
+`check-last-trim.mjs` **不在** `npm test` 里：它要一个实时 RPC 端点，而其余套件都是离线的。
+它是取证 / CI 守卫，单独跑。
 
 截图（交付用，需要本机 Chrome/Edge）：
 

@@ -108,6 +108,32 @@ const ago = (tsSec) => {
   if (d < 172800) return tr("s.005", { p0: (d / 3600).toFixed(1) });
   return tr("s.006", { p0: (d / 86400).toFixed(1) });
 };
+
+/** `ago()`, but for a timestamp that stopped moving.
+ *
+ * Every "X ago" in the conclusion band is computed from a block time inside a snapshot. While
+ * the refresh job is running, that timestamp is minutes old and `ago()` is honest. When the
+ * job stops — which is what happened for six hours on 2026-09-24 — the boundary stays put
+ * while Date.now() keeps moving, so the number grows and grows: the last real burn was 25
+ * minutes old and the page said "7.0 hours ago".
+ *
+ * The direction matters and is easy to get backwards. The snapshot's newest event is always at
+ * or before the chain's newest event (the chain only grows forward), so `now − T_snapshot` is
+ * an UPPER BOUND on the true elapsed time — the real gap is that, or smaller. Hence
+ * "7.0h ago or more recent", never "at least 7.0h ago". Written the wrong way round it would
+ * turn "it may have burned a minute ago" into "it has not burned in 7 hours", which is a worse
+ * lie than the one being fixed.
+ *
+ * While the snapshot is fresh (the normal case) this is a plain "ago": an upper bound whose
+ * bound is the measurement itself adds nothing but noise.
+ */
+const snapshotExpired = () => state.snapshotAgeHours !== null && state.snapshotAgeHours > STALE_AFTER_HOURS;
+const agoBounded = (tsSec) => (snapshotExpired() ? tr("stale.orMoreRecent", { p0: ago(tsSec) }) : ago(tsSec));
+/** "data as of 2026-09-24 09:44 UTC" — attached to a frozen figure while the snapshot is stale. */
+const asOf = () =>
+  snapshotExpired() && state.timeline && state.timeline.builtAt
+    ? tr("stale.asOf", { p0: fmtDateTime(Date.parse(state.timeline.builtAt) / 1000) })
+    : "";
 const iso = (tsSec) => new Date(tsSec * 1000).toISOString().replace("T", " ").slice(0, 19) + " UTC";
 const blocksToDays = (n) => (n * 12) / 86400;
 
@@ -269,6 +295,11 @@ async function tick() {
  * ------------------------------------------------------------------ */
 
 function renderAll() {
+  /* Freshness first. renderStaleBanner() is what sets state.snapshotAgeHours, and the
+   * conclusion's "X ago or more recent" wording and its "data as of" note are chosen from
+   * that value — so it has to be known before the renderers that read it run. Listed again at
+   * the end of this function to paint the DOM element itself. */
+  renderStaleBanner();
   renderStatus();
   renderSummary();
   renderMessages();
@@ -615,10 +646,16 @@ function renderSummaryVisual() {
       })
       .join("");
     const lastTs = recent[recent.length - 1].t;
+    /* Both the sentence and the bars come from state.timeline.trims, so both are frozen at
+     * the same moment. Making one live and leaving the other behind would put "last burn 5
+     * minutes ago" directly above a bar chart ending seven hours earlier — a worse
+     * contradiction than two honest stale readings. The "as of" note covers the pair. */
+    const asOfTxt = asOf();
     activity =
       `<div class="activity">` +
       `<div class="act-head"><span>${tr("s.522", { p0: recent.length })}</span>` +
-      `<span class="muted">${lastTs ? tr("s.523", { p0: ago(lastTs) }) : ""}</span></div>` +
+      `<span class="muted">${lastTs ? tr("s.523", { p0: agoBounded(lastTs) }) : ""}` +
+      `${asOfTxt ? ` · ${esc(asOfTxt)}` : ""}</span></div>` +
       `<div class="actbars" role="img" aria-label="${esc(tr("s.522", { p0: recent.length }))}">${bars}</div>` +
       `</div>`;
   }
@@ -963,7 +1000,7 @@ function renderVerdict() {
   const d = s.derived;
   const v = s.values;
   const lastTrim = state.timeline && state.timeline.last ? state.timeline.last.Trimmed : null;
-  const trimAge = lastTrim && state.timeline.blockTime[lastTrim] ? ago(state.timeline.blockTime[lastTrim]) : null;
+  const trimAge = lastTrim && state.timeline.blockTime[lastTrim] ? agoBounded(state.timeline.blockTime[lastTrim]) : null;
   const sinceBlocks = lastTrim ? s.blockNumber - lastTrim : null;
 
   const atLineNow = onTheLine(d);

@@ -168,16 +168,42 @@ console.log(`  wrote data/timeline.json (${(JSON.stringify(timeline).length / 10
  * machine under node), which made the whole block, including the failing line, unreachable.
  * Publishing a result instead of reaching for the internals removes the trap.
  */
+/**
+ * Base fetches start the error approach: bounded attempts, then success or a throw.
+ *
+ * Without it, one stalled Blockscout connection has no ceiling at all — `fetch()` alone can
+ * hand back a socket that never answers, and the section would hang forever instead of
+ * reaching the try/catch below.
+ */
+async function fetchJson(url, timeoutMs = 30_000) {
+  const ac = new AbortController();
+  const timer = setTimeout(() => ac.abort(), timeoutMs);
+  try {
+    const r = await fetch(url, { headers: { accept: "application/json" }, signal: ac.signal });
+    return await r.json();
+  } finally {
+    clearTimeout(timer);
+  }
+}
+
 let baseSummary = null;
 if (!SKIP_BASE) {
 console.log("\nbuilding base.json…");
+try {
+/**
+ * POOL4_BASE_FAIL=1 makes the Base half fail on purpose, in the one place the try/catch can
+ * see: inside the section, after the timeline has been built and written. It is the fault
+ * injection scripts/test-base-isolation.mjs uses to prove that (a) the new behaviour keeps
+ * timeline.json and exits 0, and (b) the old behaviour, with POOL4_BASE_ISOLATION=0, destroys
+ * it. Neither variable is set by the refresh job or the workflow.
+ */
+if (process.env.POOL4_BASE_FAIL === "1") throw new Error("POOL4_BASE_FAIL=1 — deliberate Base failure (fault injection)");
 const bs = async (address, topic0, extra = "") => {
   if (fixture) return fixture.baseLogs || [];
   const url = `https://base.blockscout.com/api?module=logs&action=getLogs&fromBlock=1&toBlock=latest&address=${address}${topic0 ? "&topic0=" + topic0 : ""}${extra}`;
   let lastMessage = "no response";
   for (let i = 0; i < 4; i++) {
-    const r = await fetch(url, { headers: { accept: "application/json" } });
-    const j = await r.json();
+    const j = await fetchJson(url);
     if (j.status === "1") return j.result;
     /* "No logs found" is a real answer — an address that has emitted nothing. Anything else,
      * after four attempts, is a failure, and `return []` for it would publish an empty burn
@@ -317,6 +343,32 @@ baseSummary = {
   totalSupply: baseState.tokenTotalSupply,
   adapterBalance: baseState.adapterBalance,
 };
+} catch (e) {
+  /* POOL4_BASE_ISOLATION=0 restores the pre-fix behaviour (the exception escapes and takes
+   * timeline.json with it). It exists so scripts/test-base-isolation.mjs can show that its
+   * assertions are capable of failing — HANDOFF #13. Nothing in the refresh job sets it. */
+  if (process.env.POOL4_BASE_ISOLATION === "0") throw e;
+  /* The Base half failed. Say so loudly — and then keep the half that succeeded.
+   *
+   * This is the fix for the outage that took the refresh chain down for six hours: base.json
+   * threw (Blockscout unreachable), the exception left the process, and timeline.json — built
+   * minutes earlier, written to the staging directory, and about to be verified — was
+   * discarded with it. The refresh job would have degraded on its own: base.json is an
+   * `optionalOutputs` entry, so its absence only leaves the published copy in place and the
+   * page's staleness banner starts counting. That path never got the chance to run.
+   *
+   * So base.json is simply not written, the exit code stays 0, and timeline.json is promoted
+   * as usual. The published base.json keeps its old contents and the banner rises on its own,
+   * because the file that stops moving is now the oldest snapshot. A failure being *visible*
+   * is the point — this is not a licence to publish unverified data: the staging →
+   * verify → promote gate is untouched, and `timeline.json` only reaches data/ by passing it.
+   */
+  console.error("\n" + "!".repeat(72));
+  console.error(`!! base.json was NOT built — ${e && e.message ? e.message : e}`);
+  console.error("!! data/base.json keeps its previous contents; it is now the oldest snapshot,");
+  console.error("!! so the page's staleness banner will say so. timeline.json is unaffected.");
+  console.error("!".repeat(72) + "\n");
+}
 } // end of the Base section (see --skip-base above)
 
 console.log("\nsummary:");
