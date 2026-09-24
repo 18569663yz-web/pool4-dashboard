@@ -5,6 +5,7 @@
 import { writeFileSync, readFileSync, mkdirSync } from "node:fs";
 import { Rpc, encodeCall, decodeReturns, fmt18, fmtUnits, keccak256Hex, utf8ToBytes } from "../lib/evm.js";
 import { ADDR, POOL_IDS } from "../lib/contracts.js";
+import { scanLogWindows } from "../lib/log-scan.js";
 import { outPath, stagedPath } from "../lib/snapshot-out.js";
 
 const DATA = new URL("../data/", import.meta.url);
@@ -173,14 +174,21 @@ console.log("\nbuilding base.json…");
 const bs = async (address, topic0, extra = "") => {
   if (fixture) return fixture.baseLogs || [];
   const url = `https://base.blockscout.com/api?module=logs&action=getLogs&fromBlock=1&toBlock=latest&address=${address}${topic0 ? "&topic0=" + topic0 : ""}${extra}`;
+  let lastMessage = "no response";
   for (let i = 0; i < 4; i++) {
     const r = await fetch(url, { headers: { accept: "application/json" } });
     const j = await r.json();
     if (j.status === "1") return j.result;
+    /* "No logs found" is a real answer — an address that has emitted nothing. Anything else,
+     * after four attempts, is a failure, and `return []` for it would publish an empty burn
+     * list that is indistinguishable from a chain with no burns. verify-snapshots.mjs would
+     * catch it as "burn count did not shrink", which reads like history rather than an
+     * outage — the same confusion as the L1 scan above (HANDOFF #17). */
     if (j.message === "No logs found") return [];
+    lastMessage = `${j.message || "unexpected response"}${j.result ? " — " + String(j.result).slice(0, 80) : ""}`;
     await sleep(3000 * (i + 1));
   }
-  return [];
+  throw new Error(`Blockscout never answered for ${address}: ${lastMessage}`);
 };
 
 // BaseBurnReceiver (verified on Base, solc 0.8.26) emits:
@@ -216,18 +224,32 @@ if (missing.length && fixture) {
 
 // L1 bridge events
 const BRIDGE_TOPIC = keccak256Hex(utf8ToBytes("TokensBridgedForBurn(address,uint32,bytes32,uint256,uint256,bytes32)"));
-const l1head = fixture ? fixture.l1Head : await l1.blockNumber();
-const bridgeLogs = [];
+// The highest head, not the first endpoint to answer: a lagging node would shorten the range
+// and silently drop the newest bridges. Same reasoning as index-logs.mjs.
+const l1head = fixture ? fixture.l1Head : (await l1.highestBlockNumber()).n;
+let bridgeLogs = [];
 if (fixture) {
-  bridgeLogs.push(...(fixture.l1BridgeLogs || []));
+  bridgeLogs = [...(fixture.l1BridgeLogs || [])];
 } else {
-  for (let from = 25800000; from <= l1head; from += 1000) {
-    const to = Math.min(from + 999, l1head);
-    try {
-      const res = await l1.call("eth_getLogs", [{ address: ADDR.burnExecutor, topics: [BRIDGE_TOPIC], fromBlock: hx(from), toBlock: hx(to) }]);
-      bridgeLogs.push(...res);
-    } catch {}
-    await sleep(40);
+  /* 247 windows is 247 chances for a public endpoint to throttle one of them. The scan used
+   * to swallow that in `catch {}`, so a dropped window surfaced only as verify-snapshots.mjs
+   * reporting one fewer bridge than the previous run — indistinguishable from a chain event. */
+  const scan = await scanLogWindows({
+    from: 25800000,
+    to: l1head,
+    fetchWindow: (from, to) =>
+      l1.call("eth_getLogs", [{ address: ADDR.burnExecutor, topics: [BRIDGE_TOPIC], fromBlock: hx(from), toBlock: hx(to) }]),
+    sleep,
+  });
+  bridgeLogs = scan.logs;
+  if (scan.retries) console.log(`  L1 scan: ${scan.retries} retries over ${scan.windows} windows`);
+  if (scan.failures.length) {
+    console.error(`  ${scan.failures.length} of ${scan.windows} L1 windows never answered:`);
+    for (const f of scan.failures.slice(0, 8)) console.error(`    ${f.from}..${f.to}  ${f.error}`);
+    if (scan.failures.length > 8) console.error(`    … and ${scan.failures.length - 8} more`);
+    /* Publishing a base.json that is missing bridge events is worse than publishing nothing:
+     * the page states the bridge count as a fact, and a quiet 62 → 61 reads as history. */
+    throw new Error(`L1 bridge scan incomplete (${scan.failures.length}/${scan.windows} windows failed)`);
   }
 }
 console.log(`  L1 TokensBridgedForBurn events: ${bridgeLogs.length}`);

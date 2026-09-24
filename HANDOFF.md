@@ -233,6 +233,17 @@ head block 26046301 from https://gateway.tenderly.co/public/mainnet
     `git status` 与 `git diff` 都报「无改动」。定位 #15 时正是被这点误导，先怀疑了 RPC 端点。
     位已清除：**这个文件的本地改动现在会显示出来，这是有意的** —— 它不进 git 是 CI 的设计
     （见「快照刷新」），不是因为它没变。
+17. **`catch {}` 让「被限流的窗口」伪装成「链上事件变少了」。** `build-data.mjs` 的 L1 bridge 扫描
+    每轮发 247 个 `eth_getLogs` 窗口，失败被 `catch {}` 静默吞掉：无日志、无重试、无痕迹。CI 上
+    有一个窗口被限流，于是 `base.json` 的 bridges 从 62 变成 61 —— `verify-snapshots.mjs` 正确地
+    拦下了它，但报的是「bridge count did not shrink (62 → 61)」，**读起来像链上变化，不像一次失败的
+    HTTP 请求**。本机同样 247 个窗口跑出 62 条、0 失败，说明是 CI 侧限流（runner 的出口 IP）。
+    修法：扫描逻辑提取到 `lib/log-scan.js` 的 `scanLogWindows()` —— 每窗口重试 3 次（每次 `call`
+    自身还会遍历所有端点）、计数并上报失败窗口；`build-data.mjs` 只要有任何窗口没答复就**抛错**，
+    宁可不发布，也不发布一份缺事件的 `base.json`。`scripts/test-log-scan.mjs`（19 条）里的
+    「the failure reaches the caller」正是旧行为会挂掉的那条。
+    同一段还把 `l1.blockNumber()`（第一个答复的端点）换成 `highestBlockNumber()`，避免滞后端点
+    截短扫描范围。**凡是「拉取失败」和「数据真的变少了」无法区分的地方，都要按这个模式处理。**
 
 ## 测试
 
@@ -249,6 +260,7 @@ node scripts/check-summaries.mjs     # --  留言原文与中文摘要并列，�
 node scripts/test-build-data.mjs     # 21  build-data 全流程离线跑通（fixture 覆盖本机不可达的 Base 段）
 node scripts/test-staged-input.mjs   #  8  下游生成器读本轮 staging 产物，而不是仓库里的旧索引
 node scripts/test-log-index.mjs      # 31  事件索引的增量边界（carry-over / scanTo / 链头异常）
+node scripts/test-log-scan.mjs       # 19  L1 日志分窗扫描：重试、失败必上报、绝不静默丢窗口
 node scripts/verify-snapshots.mjs    # --  快照形状 + 不能倒退（刷新流程的守门人）
 node scripts/preview-live.mjs        # 16  合成 LIVE 数据，断言恢复后不残留「已停」
 node scripts/test-render.mjs         # 116 无头渲染（DOM stub + 真实网络 + 中英切换后零中文/零裸键名）
