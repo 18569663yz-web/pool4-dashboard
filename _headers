@@ -1,14 +1,17 @@
-# Cloudflare Pages / Netlify honour this file.
+# Cloudflare Workers static assets honour this file (Pages and Netlify do too).
 # Everything here is static; the only freshness that matters is the JSON snapshots.
+#
+# Verified against the live deployment: /*, /assets/*, /lib/*, /data/* and /*.md all take
+# effect as written. The HTML is deliberately absent — Workers answers /index.html with a 307
+# to /, so a rule keyed on /index.html can never match anything, and the default for / is
+# already "public, max-age=0, must-revalidate", which is what a page that ships new code wants
+# anyway. The previous version had a /index.html rule that had never once applied.
 
 /*
   X-Content-Type-Options: nosniff
   Referrer-Policy: no-referrer
   X-Frame-Options: DENY
   Permissions-Policy: geolocation=(), microphone=(), camera=()
-
-/index.html
-  Cache-Control: public, max-age=60, must-revalidate
 
 /assets/*
   Cache-Control: public, max-age=3600

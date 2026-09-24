@@ -299,7 +299,35 @@ node scripts/shoot.mjs --out shots --url http://127.0.0.1:5173     # → shots/p
 
 ## 部署
 
-**没有任何托管凭证。** 本地预览：
+**线上**：**`https://imd.kymmppee.xyz`**（自定义域，直连可访问）与
+`https://pool4-dashboard.18569663yz.workers.dev`（Worker 默认域）—— Cloudflare **Workers + 静态资源**，
+由 Workers Builds 的 Git 集成自动部署（push → 构建 → `npx wrangler deploy`）。
+
+| 项目 | 值 |
+| --- | --- |
+| Worker 名 | `pool4-dashboard` —— **必须与 `wrangler.jsonc` 的 `name` 一致**，改一个就要改另一个 |
+| 构建命令 | `rm -rf dist && mkdir -p dist && cp -r index.html _headers README.md assets lib locales data dist/ && rm -f dist/data/history.json dist/data/_*.json dist/data/strings-*.json dist/data/README.md` |
+| 部署命令 | `npx wrangler deploy`（默认值，读仓库根的 `wrangler.jsonc`） |
+| 根目录 | `/` |
+| 一次构建 | ~21 秒（初始化 2s + 克隆 2s + 安装 0.5s + 构建 0.25s + 部署 17s） |
+
+**为什么是 Workers 而不是 Pages**：两者免费额度计费方式不同 —— Pages 按**构建次数**
+（500 次/月），每小时一次 ≈ 730 次会在月中静默停掉；Workers Builds 按**构建分钟**
+（3,000 分钟/月），每小时一次 ≈ 255 分钟，只用掉 8.5%。**「部署频率 = 数据新鲜度」这个旋钮，
+在 Workers 下不再受额度限制。**
+
+**可达性（实测，2026-09-24）**：`*.workers.dev` 在中国大陆**直连不通**（`000`，走代理才 `200`）；
+绑上 `imd.kymmppee.xyz` 之后**直连返回 `200`** —— 两者走的是 Cloudflare 不同的 IP 段
+（自定义域落在 `188.114.96.11` / `188.114.97.11`）。**所以绑自定义域不只是让链接好看，它实际决定了
+中文用户能不能打开。** 域名解析：A `188.114.96.11`、`188.114.97.11`，AAAA `2a06:98c1:3120::b`、
+`2a06:98c1:3121::b`；MX 走 Cloudflare Email Routing，与 Worker 互不影响。
+
+**`_headers` 的实测行为**（部署后逐条验证过）：`/*`、`/assets/*`、`/lib/*`、`/data/*`、`/*.md`
+全部按写生效。**HTML 故意不写规则** —— Workers 把 `/index.html` 以 307 重定向到 `/`，键在
+`/index.html` 上的规则永远不会命中（旧版就有一条，从未生效过），而 `/` 的默认值
+`public, max-age=0, must-revalidate` 正是想要的：页面永远拿最新代码。
+
+本地预览：
 
 ```bash
 node scripts/serve.mjs 5173
@@ -315,18 +343,8 @@ Invoke-CimMethod -ClassName Win32_Process -MethodName Create -Arguments @{
 # cloudflared 同理，用 --logfile 拿 URL（避免 shell 重定向）
 ```
 
-持久发布（任选，需账号）：
-
-```bash
-npx wrangler pages deploy . --project-name pool4-dashboard
-npx vercel --prod
-```
-
 ## 待办
 
 - [ ] 池 A 历史曲线 —— 状态已经翻转（cap 追平池子、状态转 CRITICAL），叙事可以按新状态重写了
-- [ ] 持久托管（需用户凭证）
-- [ ] 预生成快照的更新频率：`timeline/base/volume/messages/bridge-history` 都靠手动跑脚本，
-      自动更新需要 GitHub Actions
 - [ ] 危险交易监控（7 个函数，含 `setBaseBurnReceiver` 的事件检测）
 - [ ] 数据面（7 个指标 + `originalRequest` 开放度 + `/requests/capabilities` 实时价格）
