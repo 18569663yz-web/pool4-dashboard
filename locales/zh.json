@@ -828,5 +828,6 @@
   "html.what.flow2": "池子里囤的 IMD 变多，离触发线更近",
   "html.what.flow3": "一旦超过触发线，超出的那部分被抽走",
   "html.what.flow4": "<span class=\"burn\">85% 永久销毁</span><span class=\"reward\">15% 分给质押者</span>",
-  "html.what.flowNote": "<b>没人卖，就不会烧。</b>抽走之后还要有人在 Base 链上主动付手续费调用销毁——两道门都不会自己打开。"
+  "html.what.flowNote": "<b>没人卖，就不会烧。</b>抽走之后还要有人在 Base 链上主动付手续费调用销毁——两道门都不会自己打开。",
+  "html.footer.author": "本站由 <a href=\"https://x.com/Despite_zmw\" target=\"_blank\" rel=\"noopener\">@Despite_zmw</a> 维护——发现问题或想提建议，欢迎来 X 找我。"
 }

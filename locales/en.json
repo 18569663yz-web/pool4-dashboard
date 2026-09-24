@@ -828,5 +828,6 @@
   "html.what.flow2": "The pool's IMD pile grows, closer to the line",
   "html.what.flow3": "Cross the line and the excess is pulled out",
   "html.what.flow4": "<span class=\"burn\">85% burned for good</span><span class=\"reward\">15% to stakers</span>",
-  "html.what.flowNote": "<b>No sellers, no burns.</b> And after the trim, someone still has to pay the gas to call burn on Base — neither of the two doors opens on its own."
+  "html.what.flowNote": "<b>No sellers, no burns.</b> And after the trim, someone still has to pay the gas to call burn on Base — neither of the two doors opens on its own.",
+  "html.footer.author": "Maintained by <a href=\"https://x.com/Despite_zmw\" target=\"_blank\" rel=\"noopener\">@Despite_zmw</a> — corrections and suggestions are welcome on X."
 }

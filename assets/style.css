@@ -351,6 +351,10 @@ blockquote cite { display: block; font-style: normal; font-size: 11px; color: va
 
 footer { margin-top: 44px; padding-top: 18px; border-top: 1px solid var(--line); color: var(--fg-3); font-size: 12px; }
 footer p { margin: 6px 0; }
+/* The one human contact point on the page — it gets to be slightly louder than the
+ * boilerplate above it. */
+.footer-author { margin-top: 12px; }
+.footer-author a { font-weight: 650; }
 
 details { margin-top: 8px; }
 details summary { cursor: pointer; font-size: 12.5px; color: var(--fg-2); }

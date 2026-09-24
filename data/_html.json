@@ -1,4 +1,4 @@
-﻿{
+{
   "_note": "index.html 的静态文案。页面默认中文，所以 zh 与 HTML 初值一致；data-i18n / data-i18n-html 负责在切换到英文时覆盖。",
   "zh": {
     "html.status.block": "区块",
@@ -123,7 +123,8 @@
     "html.what.flow2": "池子里囤的 IMD 变多，离触发线更近",
     "html.what.flow3": "一旦超过触发线，超出的那部分被抽走",
     "html.what.flow4": "<span class=\"burn\">85% 永久销毁</span><span class=\"reward\">15% 分给质押者</span>",
-    "html.what.flowNote": "<b>没人卖，就不会烧。</b>抽走之后还要有人在 Base 链上主动付手续费调用销毁——两道门都不会自己打开。"
+    "html.what.flowNote": "<b>没人卖，就不会烧。</b>抽走之后还要有人在 Base 链上主动付手续费调用销毁——两道门都不会自己打开。",
+    "html.footer.author": "本站由 <a href=\"https://x.com/Despite_zmw\" target=\"_blank\" rel=\"noopener\">@Despite_zmw</a> 维护——发现问题或想提建议，欢迎来 X 找我。"
   },
   "en": {
     "html.status.block": "Block",
@@ -248,6 +249,7 @@
     "html.what.flow2": "The pool's IMD pile grows, closer to the line",
     "html.what.flow3": "Cross the line and the excess is pulled out",
     "html.what.flow4": "<span class=\"burn\">85% burned for good</span><span class=\"reward\">15% to stakers</span>",
-    "html.what.flowNote": "<b>No sellers, no burns.</b> And after the trim, someone still has to pay the gas to call burn on Base — neither of the two doors opens on its own."
+    "html.what.flowNote": "<b>No sellers, no burns.</b> And after the trim, someone still has to pay the gas to call burn on Base — neither of the two doors opens on its own.",
+    "html.footer.author": "Maintained by <a href=\"https://x.com/Despite_zmw\" target=\"_blank\" rel=\"noopener\">@Despite_zmw</a> — corrections and suggestions are welcome on X."
   }
 }
