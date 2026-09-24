@@ -1,0 +1,25 @@
+# Cloudflare Pages / Netlify honour this file.
+# Everything here is static; the only freshness that matters is the JSON snapshots.
+
+/*
+  X-Content-Type-Options: nosniff
+  Referrer-Policy: no-referrer
+  X-Frame-Options: DENY
+  Permissions-Policy: geolocation=(), microphone=(), camera=()
+
+/index.html
+  Cache-Control: public, max-age=60, must-revalidate
+
+/assets/*
+  Cache-Control: public, max-age=3600
+
+/lib/*
+  Cache-Control: public, max-age=3600
+
+# Refreshed by scripts/build-data.mjs — keep the window short.
+/data/*
+  Cache-Control: public, max-age=300, must-revalidate
+
+/*.md
+  Cache-Control: public, max-age=3600
+  Content-Type: text/markdown; charset=utf-8

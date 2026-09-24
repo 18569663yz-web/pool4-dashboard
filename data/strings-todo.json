@@ -1,0 +1,1177 @@
+{
+  "generatedAt": "2026-09-24T06:37:25.883Z",
+  "total": 117,
+  "real": 117,
+  "rows": [
+    {
+      "file": "assets/app.js",
+      "line": 1006,
+      "fn": "renderDoors",
+      "literal": ", { p0: fmt18(sinkBal, 6) }) +\n      `<dt>现在能不能送走</dt><dd>${(() => {\n        const p = v[",
+      "interpolated": true,
+      "html": true,
+      "runaway": false,
+      "translate": true
+    },
+    {
+      "file": "assets/app.js",
+      "line": 1008,
+      "fn": "renderDoors",
+      "literal": "];\n        if (!p) return UNAVAILABLE;\n        return p[0] === 0n\n          ? `不能（没有可送的量）`\n          : `能送 ${fmt18(p[0], 6)} IMD <span class=",
+      "interpolated": true,
+      "html": false,
+      "runaway": false,
+      "translate": true
+    },
+    {
+      "file": "assets/app.js",
+      "line": 1012,
+      "fn": "renderDoors",
+      "literal": ">跨链费约 ${fmt18(p[2], 8)} ETH</span>`;\n      })()}</dd>`\n  );\n  setHtml(\n    ",
+      "interpolated": true,
+      "html": false,
+      "runaway": false,
+      "translate": true
+    },
+    {
+      "file": "assets/app.js",
+      "line": 1492,
+      "fn": "renderOwner",
+      "literal": "<p class=\"tiny muted\">该合约没有可直接提取资金的 owner 函数。</p>",
+      "interpolated": false,
+      "html": true,
+      "runaway": false,
+      "translate": true
+    },
+    {
+      "file": "assets/app.js",
+      "line": 1502,
+      "fn": "renderOwner",
+      "literal": "<b>这意味着什么：</b>这套系统由 ${status.length} 个合约组成，<b>每个合约有自己的 owner，权限状态并不相同</b>。",
+      "interpolated": true,
+      "html": true,
+      "runaway": false,
+      "translate": true
+    },
+    {
+      "file": "assets/app.js",
+      "line": 1504,
+      "fn": "renderOwner",
+      "literal": "<b>${renouncedList.map((c) => c.contract).join(\"、\")} 已经放弃权限</b>——owner 是零地址，",
+      "interpolated": true,
+      "html": true,
+      "runaway": false,
+      "translate": true
+    },
+    {
+      "file": "assets/app.js",
+      "line": 1505,
+      "fn": "renderOwner",
+      "literal": "它的提取与冻结函数已经没有任何地址能调用。",
+      "interpolated": false,
+      "html": false,
+      "runaway": false,
+      "translate": true
+    },
+    {
+      "file": "assets/app.js",
+      "line": 1508,
+      "fn": "renderOwner",
+      "literal": " 但 <b>${liveList.map((c) => c.contract).join(\"、\")} 仍然由一个普通钱包控制</b>，",
+      "interpolated": true,
+      "html": true,
+      "runaway": false,
+      "translate": true
+    },
+    {
+      "file": "assets/app.js",
+      "line": 1509,
+      "fn": "renderOwner",
+      "literal": "没有时间锁、没有多签，共 ${livePowers} 项提取或冻结类权限仍然有效。",
+      "interpolated": true,
+      "html": false,
+      "runaway": false,
+      "translate": true
+    },
+    {
+      "file": "assets/app.js",
+      "line": 1511,
+      "fn": "renderOwner",
+      "literal": " 下面按合约分别列出，不要笼统理解成「全部可控」或「全部安全」。",
+      "interpolated": false,
+      "html": false,
+      "runaway": false,
+      "translate": true
+    },
+    {
+      "file": "assets/app.js",
+      "line": 1529,
+      "fn": "renderOwner",
+      "literal": "<thead><tr><th>级别</th><th>合约</th><th>函数 / 行号</th><th>后果</th><th>当前</th></tr></thead><tbody>${rows}</tbody>",
+      "interpolated": true,
+      "html": true,
+      "runaway": false,
+      "translate": true
+    },
+    {
+      "file": "assets/app.js",
+      "line": 1549,
+      "fn": "renderMessages",
+      "literal": "<div class=\"banner info\"><span class=\"ic\">i</span><div>留言数据未生成。运行 <code>node scripts/fetch-messages.mjs</code> 后重新部署。</div></div>",
+      "interpolated": false,
+      "html": true,
+      "runaway": false,
+      "translate": true
+    },
+    {
+      "file": "assets/app.js",
+      "line": 1571,
+      "fn": "renderMessages",
+      "literal": "<b>这意味着什么：</b>项目方没有 Twitter 公告，官网文档至今是 “Coming soon”——",
+      "interpolated": false,
+      "html": true,
+      "runaway": false,
+      "translate": true
+    },
+    {
+      "file": "assets/app.js",
+      "line": 1572,
+      "fn": "renderMessages",
+      "literal": "<b>他只在链上发留言</b>。共 ${all.length} 条可读记录，其中 <b>${devCount} 条来自项目方</b>、",
+      "interpolated": true,
+      "html": true,
+      "runaway": false,
+      "translate": true
+    },
+    {
+      "file": "assets/app.js",
+      "line": 1573,
+      "fn": "renderMessages",
+      "literal": "${commCount} 条来自社区。下面按时间倒序，原文照录，不做解读。",
+      "interpolated": true,
+      "html": false,
+      "runaway": false,
+      "translate": true
+    },
+    {
+      "file": "assets/app.js",
+      "line": 1575,
+      "fn": "renderMessages",
+      "literal": " <b>最近一次公告：${ageDays.toFixed(0)} 天前。</b>",
+      "interpolated": true,
+      "html": true,
+      "runaway": false,
+      "translate": true
+    },
+    {
+      "file": "assets/app.js",
+      "line": 1577,
+      "fn": "renderMessages",
+      "literal": " 最近一次公告：${ageDays < 1 ? tr(\"s.380\") : ageDays.toFixed(0) + tr(\"s.381\")}。",
+      "interpolated": true,
+      "html": false,
+      "runaway": false,
+      "translate": true
+    },
+    {
+      "file": "assets/app.js",
+      "line": 1594,
+      "fn": "renderMessages",
+      "literal": "<div class=\"tiny muted\">该分类下没有留言。</div>",
+      "interpolated": false,
+      "html": true,
+      "runaway": false,
+      "translate": true
+    },
+    {
+      "file": "assets/app.js",
+      "line": 1598,
+      "fn": "renderMessages",
+      "literal": "数据源：<code>GET https://eth.blockscout.com/api/v2/addresses/${esc(data.address)}/transactions</code>（免费，无需 key，",
+      "interpolated": true,
+      "html": true,
+      "runaway": false,
+      "translate": true
+    },
+    {
+      "file": "assets/app.js",
+      "line": 1599,
+      "fn": "renderMessages",
+      "literal": "用响应里的 <code>next_page_params</code> 翻页；<b>不能加 <code>filter=to|from</code>，加了会返回空列表</b>）。",
+      "interpolated": false,
+      "html": true,
+      "runaway": false,
+      "translate": true
+    },
+    {
+      "file": "assets/app.js",
+      "line": 1600,
+      "fn": "renderMessages",
+      "literal": "留言就是交易的 <code>raw_input</code>：去掉 <code>0x</code> 后按 UTF-8 解码的纯文本 calldata。",
+      "interpolated": false,
+      "html": true,
+      "runaway": false,
+      "translate": true
+    },
+    {
+      "file": "assets/app.js",
+      "line": 1601,
+      "fn": "renderMessages",
+      "literal": "<br>本次抓取：${data.counts.txs} 笔交易 → ${data.counts.decoded} 条可解码（${data.counts.undecodable} 条无法解码，多为合约调用）。",
+      "interpolated": true,
+      "html": true,
+      "runaway": false,
+      "translate": true
+    },
+    {
+      "file": "assets/app.js",
+      "line": 1602,
+      "fn": "renderMessages",
+      "literal": "<br>项目方地址：${data.devAddresses.map((a) => `<code>${esc(a)}</code>`).join(tr(\"s.382\"))}。",
+      "interpolated": true,
+      "html": true,
+      "runaway": false,
+      "translate": true
+    },
+    {
+      "file": "assets/app.js",
+      "line": 1603,
+      "fn": "renderMessages",
+      "literal": "其中 <code>${esc(data.address)}</code> 是留言板本身，项目方用「自己发给自己」的方式发布公告。",
+      "interpolated": true,
+      "html": true,
+      "runaway": false,
+      "translate": true
+    },
+    {
+      "file": "assets/app.js",
+      "line": 1604,
+      "fn": "renderMessages",
+      "literal": "<br>抓取时间：${new Date(data.fetchedAt).toISOString().replace(\"T\", \" \").slice(0, 19)} UTC。",
+      "interpolated": true,
+      "html": true,
+      "runaway": false,
+      "translate": true
+    },
+    {
+      "file": "assets/app.js",
+      "line": 1605,
+      "fn": "renderMessages",
+      "literal": "这是<b>预生成快照</b>，不是实时值；重新运行脚本即可更新。",
+      "interpolated": false,
+      "html": true,
+      "runaway": false,
+      "translate": true
+    },
+    {
+      "file": "assets/app.js",
+      "line": 1717,
+      "fn": "renderMonitor",
+      "literal": "owner 发起了交易",
+      "interpolated": false,
+      "html": false,
+      "runaway": false,
+      "translate": true
+    },
+    {
+      "file": "assets/app.js",
+      "line": 1720,
+      "fn": "renderMonitor",
+      "literal": "eth_getTransactionCount — owner 动了手，但受监控参数未变（可能是 rescueERC20 / withdrawFees / closeMarket / setPaused）",
+      "interpolated": false,
+      "html": false,
+      "runaway": false,
+      "translate": true
+    },
+    {
+      "file": "assets/app.js",
+      "line": 1738,
+      "fn": "renderMonitor",
+      "literal": "<span class=\"chip\">首次运行，已建立基线</span> 从下一次刷新开始比对。",
+      "interpolated": false,
+      "html": true,
+      "runaway": false,
+      "translate": true
+    },
+    {
+      "file": "assets/app.js",
+      "line": 1740,
+      "fn": "renderMonitor",
+      "literal": "<span class=\"chip good\">无变化</span> 自上次快照以来，全部 ${WATCHED.length} 个受监控参数与 owner nonce 均未变动。",
+      "interpolated": true,
+      "html": true,
+      "runaway": false,
+      "translate": true
+    },
+    {
+      "file": "assets/app.js",
+      "line": 1741,
+      "fn": "renderMonitor",
+      "literal": "<span class=\"chip bad\">检测到 ${changes.length} 项变化</span> ${paramChanged.length ? tr(\"s.383\", { p0: paramChanged.length }) : \"\"}${nonceChanged ? tr(\"s.384\") : \"\"}",
+      "interpolated": true,
+      "html": true,
+      "runaway": false,
+      "translate": true
+    },
+    {
+      "file": "assets/app.js",
+      "line": 1755,
+      "fn": "renderMonitor",
+      "literal": "<thead><tr><th>参数</th><th>当前值</th><th>变更入口（源码）</th></tr></thead><tbody>${rows}</tbody>",
+      "interpolated": true,
+      "html": true,
+      "runaway": false,
+      "translate": true
+    },
+    {
+      "file": "assets/app.js",
+      "line": 1770,
+      "fn": "renderMonitor",
+      "literal": "<thead><tr><th>首次发现</th><th>项</th><th>变化</th><th>说明</th></tr></thead><tbody>${logRows}</tbody>",
+      "interpolated": true,
+      "html": true,
+      "runaway": false,
+      "translate": true
+    },
+    {
+      "file": "assets/app.js",
+      "line": 1771,
+      "fn": "renderMonitor",
+      "literal": "<tbody><tr><td class=\"tiny muted\">本机暂无记录。监控只在你打开这个页面时运行。</td></tr></tbody>",
+      "interpolated": false,
+      "html": true,
+      "runaway": false,
+      "translate": true
+    },
+    {
+      "file": "assets/app.js",
+      "line": 1776,
+      "fn": "formatWatchValue",
+      "literal": "取不到",
+      "interpolated": false,
+      "html": false,
+      "runaway": false,
+      "translate": true
+    },
+    {
+      "file": "assets/app.js",
+      "line": 1783,
+      "fn": "formatWatchValue",
+      "literal": " IMD/天",
+      "interpolated": false,
+      "html": false,
+      "runaway": false,
+      "translate": true
+    },
+    {
+      "file": "assets/app.js",
+      "line": 1834,
+      "fn": "renderHistory",
+      "literal": "抽走并烧毁的次数",
+      "interpolated": false,
+      "html": false,
+      "runaway": false,
+      "translate": true
+    },
+    {
+      "file": "assets/app.js",
+      "line": 1836,
+      "fn": "renderHistory",
+      "literal": "另有 ${settles.length} 次价格下限保护平仓时烧毁",
+      "interpolated": true,
+      "html": false,
+      "runaway": false,
+      "translate": true
+    },
+    {
+      "file": "assets/app.js",
+      "line": 1838,
+      "fn": "renderHistory",
+      "literal": "累计烧毁（账面）",
+      "interpolated": false,
+      "html": false,
+      "runaway": false,
+      "translate": true
+    },
+    {
+      "file": "assets/app.js",
+      "line": 1838,
+      "fn": "renderHistory",
+      "literal": "两条路径合计",
+      "interpolated": false,
+      "html": false,
+      "runaway": false,
+      "translate": true
+    },
+    {
+      "file": "assets/app.js",
+      "line": 1839,
+      "fn": "renderHistory",
+      "literal": "累计分出奖励（账面）",
+      "interpolated": false,
+      "html": false,
+      "runaway": false,
+      "translate": true
+    },
+    {
+      "file": "assets/app.js",
+      "line": 1841,
+      "fn": "renderHistory",
+      "literal": "单次最大烧毁",
+      "interpolated": false,
+      "html": false,
+      "runaway": false,
+      "translate": true
+    },
+    {
+      "file": "assets/app.js",
+      "line": 1851,
+      "fn": "renderHistory",
+      "literal": "<b>这意味着什么：</b>这台引擎过去一直在工作——总共发生过 <b>${trims.length}</b> 次抽走烧毁，",
+      "interpolated": true,
+      "html": true,
+      "runaway": false,
+      "translate": true
+    },
+    {
+      "file": "assets/app.js",
+      "line": 1852,
+      "fn": "renderHistory",
+      "literal": "另有 ${settles.length} 次价格下限保护平仓时烧毁。",
+      "interpolated": true,
+      "html": false,
+      "runaway": false,
+      "translate": true
+    },
+    {
+      "file": "assets/app.js",
+      "line": 1853,
+      "fn": "renderHistory",
+      "literal": "第一次在区块 ${firstTrim.b.toLocaleString()}，最后一次在区块 ${lastTrim.b.toLocaleString()}",
+      "interpolated": true,
+      "html": false,
+      "runaway": false,
+      "translate": true
+    },
+    {
+      "file": "assets/app.js",
+      "line": 1854,
+      "fn": "renderHistory",
+      "literal": "（${days.toFixed(1)} 天前）。之后就没有再发生过。",
+      "interpolated": true,
+      "html": false,
+      "runaway": false,
+      "translate": true
+    },
+    {
+      "file": "assets/app.js",
+      "line": 1858,
+      "fn": "renderHistory",
+      "literal": "<b>这两条路径加起来</b>，与链上记录的累计烧毁量完全吻合（误差 0）。",
+      "interpolated": false,
+      "html": true,
+      "runaway": false,
+      "translate": true
+    },
+    {
+      "file": "assets/app.js",
+      "line": 1859,
+      "fn": "renderHistory",
+      "literal": "<br><b>一个容易误会的细节：</b>如果你把历史上每一次烧毁的「奖励 ÷ 总量」都加起来，会得到 ",
+      "interpolated": false,
+      "html": true,
+      "runaway": false,
+      "translate": true
+    },
+    {
+      "file": "assets/app.js",
+      "line": 1860,
+      "fn": "renderHistory",
+      "literal": "<b>1499 bps</b>，而不是配置的 1500 bps。原因是每一次烧毁都各自向下取整，累加后必然略低。",
+      "interpolated": false,
+      "html": true,
+      "runaway": false,
+      "translate": true
+    },
+    {
+      "file": "assets/app.js",
+      "line": 1861,
+      "fn": "renderHistory",
+      "literal": "<b>单次拆分是精确的 1500 bps</b>——这不是 owner 改过费率。",
+      "interpolated": false,
+      "html": true,
+      "runaway": false,
+      "translate": true
+    },
+    {
+      "file": "assets/app.js",
+      "line": 1862,
+      "fn": "renderHistory",
+      "literal": "<details class=\"tech\" style=\"margin-top:10px\"><summary>给技术读者的细节：取整来源与对账方式</summary>",
+      "interpolated": false,
+      "html": true,
+      "runaway": false,
+      "translate": true
+    },
+    {
+      "file": "assets/app.js",
+      "line": 1863,
+      "fn": "renderHistory",
+      "literal": "<div class=\"note\">每条 <code>Trimmed</code> / <code>BackstopSettled</code> 事件里的 ",
+      "interpolated": false,
+      "html": true,
+      "runaway": false,
+      "translate": true
+    },
+    {
+      "file": "assets/app.js",
+      "line": 1864,
+      "fn": "renderHistory",
+      "literal": "<code>tokensRewarded</code> 都等于 <code>floor(tokensRemoved × 1500 / 10000)</code>（L1033），",
+      "interpolated": false,
+      "html": true,
+      "runaway": false,
+      "translate": true
+    },
+    {
+      "file": "assets/app.js",
+      "line": 1865,
+      "fn": "renderHistory",
+      "literal": "余数归入 <code>tokensBurned</code>（L1034）。<code>totalBurned()</code> 由两条路径共同累加：",
+      "interpolated": false,
+      "html": true,
+      "runaway": false,
+      "translate": true
+    },
+    {
+      "file": "assets/app.js",
+      "line": 1866,
+      "fn": "renderHistory",
+      "literal": "trim（L1004）与 backstop 平仓（L741）——只用 trim 对账会差 4,306 IMD。",
+      "interpolated": false,
+      "html": false,
+      "runaway": false,
+      "translate": true
+    },
+    {
+      "file": "assets/app.js",
+      "line": 1867,
+      "fn": "renderHistory",
+      "literal": "首次 trim 区块 ${firstTrim ? firstTrim.b.toLocaleString() : \"—\"}，最后一次 ${lastTrim ? lastTrim.b.toLocaleString() : \"—\"}。</div></details>",
+      "interpolated": true,
+      "html": false,
+      "runaway": false,
+      "translate": true
+    },
+    {
+      "file": "assets/app.js",
+      "line": 1877,
+      "fn": "renderPools",
+      "literal": "池 A（没有烧毁程序）",
+      "interpolated": false,
+      "html": false,
+      "runaway": false,
+      "translate": true
+    },
+    {
+      "file": "assets/app.js",
+      "line": 1877,
+      "fn": "renderPools",
+      "literal": "0x0（无）",
+      "interpolated": false,
+      "html": false,
+      "runaway": false,
+      "translate": true
+    },
+    {
+      "file": "assets/app.js",
+      "line": 1877,
+      "fn": "renderPools",
+      "literal": "不烧币",
+      "interpolated": false,
+      "html": false,
+      "runaway": false,
+      "translate": true
+    },
+    {
+      "file": "assets/app.js",
+      "line": 1878,
+      "fn": "renderPools",
+      "literal": "池 B（挂了烧毁程序）",
+      "interpolated": false,
+      "html": false,
+      "runaway": false,
+      "translate": true
+    },
+    {
+      "file": "assets/app.js",
+      "line": 1878,
+      "fn": "renderPools",
+      "literal": "会触发烧毁",
+      "interpolated": false,
+      "html": false,
+      "runaway": false,
+      "translate": true
+    },
+    {
+      "file": "assets/app.js",
+      "line": 1900,
+      "fn": "renderPools",
+      "literal": "<thead><tr><th>交易池</th><th>手续费</th><th>价格粒度</th><th>挂载的程序</th><th>是否烧币</th><th>当前价格 tick</th><th>流动性</th><th>1 IMD 值多少 ETH</th></tr></thead><tbody>${rows}</tbody>",
+      "interpolated": true,
+      "html": true,
+      "runaway": false,
+      "translate": true
+    },
+    {
+      "file": "assets/app.js",
+      "line": 1904,
+      "fn": "renderPools",
+      "literal": "池 A 的 <code>hooks = 0x0</code>，<b>完全不经过烧毁引擎</b>——在池 A 上卖出 IMD 不会烧掉任何东西。",
+      "interpolated": false,
+      "html": true,
+      "runaway": false,
+      "translate": true
+    },
+    {
+      "file": "assets/app.js",
+      "line": 1905,
+      "fn": "renderPools",
+      "literal": "只有池 B 的 swap 会触发 <code>afterSwap → _applyCap()</code>。",
+      "interpolated": false,
+      "html": true,
+      "runaway": false,
+      "translate": true
+    },
+    {
+      "file": "assets/app.js",
+      "line": 1906,
+      "fn": "renderPools",
+      "literal": "<br>两个池的 poolId 由 <code>keccak256(abi.encode(PoolKey))</code> 计算，",
+      "interpolated": false,
+      "html": true,
+      "runaway": false,
+      "translate": true
+    },
+    {
+      "file": "assets/app.js",
+      "line": 1907,
+      "fn": "renderPools",
+      "literal": "已用 ethers v6 独立交叉验证；池 A 的结果与公开的已知值一致。",
+      "interpolated": false,
+      "html": false,
+      "runaway": false,
+      "translate": true
+    },
+    {
+      "file": "assets/app.js",
+      "line": 1908,
+      "fn": "renderPools",
+      "literal": "也可直接在 <code>StateView</code>（${esc(ADDR.stateView)}）上复核。",
+      "interpolated": true,
+      "html": true,
+      "runaway": false,
+      "translate": true
+    },
+    {
+      "file": "assets/app.js",
+      "line": 1909,
+      "fn": "renderPools",
+      "literal": "<br>交易量口径：过去 24 小时两个池的 <code>Swap</code> 事件，按 ETH 侧绝对流量统计；",
+      "interpolated": false,
+      "html": true,
+      "runaway": false,
+      "translate": true
+    },
+    {
+      "file": "assets/app.js",
+      "line": 1910,
+      "fn": "renderPools",
+      "literal": "脚本 <code>scripts/scan-swaps.mjs</code> 可复现。",
+      "interpolated": false,
+      "html": true,
+      "runaway": false,
+      "translate": true
+    },
+    {
+      "file": "assets/app.js",
+      "line": 1920,
+      "fn": "renderFooter",
+      "literal": "当前 RPC：${esc(s.endpoint)} · 以太坊区块 ${s.blockNumber.toLocaleString()} · ",
+      "interpolated": true,
+      "html": false,
+      "runaway": false,
+      "translate": true
+    },
+    {
+      "file": "assets/app.js",
+      "line": 1921,
+      "fn": "renderFooter",
+      "literal": "Base 区块 ${s.base && s.base.blockNumber ? s.base.blockNumber.toLocaleString() : tr(\"s.385\")} · ",
+      "interpolated": true,
+      "html": false,
+      "runaway": false,
+      "translate": true
+    },
+    {
+      "file": "assets/app.js",
+      "line": 1922,
+      "fn": "renderFooter",
+      "literal": "读取耗时与失败项：${errs} 项失败 · ",
+      "interpolated": true,
+      "html": false,
+      "runaway": false,
+      "translate": true
+    },
+    {
+      "file": "assets/app.js",
+      "line": 1923,
+      "fn": "renderFooter",
+      "literal": "池 B poolId ${esc(POOL_IDS.B)}",
+      "interpolated": true,
+      "html": false,
+      "runaway": false,
+      "translate": true
+    },
+    {
+      "file": "assets/app.js",
+      "line": 1936,
+      "fn": "renderFooter",
+      "literal": "假设每天有 1,000 个 IMD 被卖进池子。这会让池子里的存量慢慢逼近触发线。",
+      "interpolated": false,
+      "html": false,
+      "runaway": false,
+      "translate": true
+    },
+    {
+      "file": "assets/app.js",
+      "line": 1942,
+      "fn": "renderFooter",
+      "literal": "假设 IMD 相对 ETH 贬值 20%。池子里的 IMD 数量会因此变多，离触发线更近——但要注意这不等于有人真的在卖。",
+      "interpolated": false,
+      "html": false,
+      "runaway": false,
+      "translate": true
+    },
+    {
+      "file": "assets/app.js",
+      "line": 1948,
+      "fn": "renderFooter",
+      "literal": "维持现状：没人净卖出，价格不变。距离不会自己缩短。",
+      "interpolated": false,
+      "html": false,
+      "runaway": false,
+      "translate": true
+    },
+    {
+      "file": "assets/app.js",
+      "line": 1973,
+      "fn": "applyPreset",
+      "literal": "拖动下面任意滑块即可自定义。",
+      "interpolated": false,
+      "html": false,
+      "runaway": false,
+      "translate": true
+    },
+    {
+      "file": "assets/app.js",
+      "line": 1993,
+      "fn": "renderSources",
+      "literal": "池子里囤着的 IMD / 池子里的 ETH",
+      "interpolated": false,
+      "html": false,
+      "runaway": false,
+      "translate": true
+    },
+    {
+      "file": "assets/app.js",
+      "line": 1993,
+      "fn": "renderSources",
+      "literal": "以太坊",
+      "interpolated": false,
+      "html": false,
+      "runaway": false,
+      "translate": true
+    },
+    {
+      "file": "assets/app.js",
+      "line": 1994,
+      "fn": "renderSources",
+      "literal": "点火距离（权威值）",
+      "interpolated": false,
+      "html": false,
+      "runaway": false,
+      "translate": true
+    },
+    {
+      "file": "assets/app.js",
+      "line": 1994,
+      "fn": "renderSources",
+      "literal": "以太坊",
+      "interpolated": false,
+      "html": false,
+      "runaway": false,
+      "translate": true
+    },
+    {
+      "file": "assets/app.js",
+      "line": 1995,
+      "fn": "renderSources",
+      "literal": "烧毁触发线 / 触发线的下限",
+      "interpolated": false,
+      "html": false,
+      "runaway": false,
+      "translate": true
+    },
+    {
+      "file": "assets/app.js",
+      "line": 1995,
+      "fn": "renderSources",
+      "literal": "以太坊",
+      "interpolated": false,
+      "html": false,
+      "runaway": false,
+      "translate": true
+    },
+    {
+      "file": "assets/app.js",
+      "line": 1996,
+      "fn": "renderSources",
+      "literal": "触发线下调速度 / 比例",
+      "interpolated": false,
+      "html": false,
+      "runaway": false,
+      "translate": true
+    },
+    {
+      "file": "assets/app.js",
+      "line": 1996,
+      "fn": "renderSources",
+      "literal": "以太坊",
+      "interpolated": false,
+      "html": false,
+      "runaway": false,
+      "translate": true
+    },
+    {
+      "file": "assets/app.js",
+      "line": 1997,
+      "fn": "renderSources",
+      "literal": "累计烧毁 / 累计奖励",
+      "interpolated": false,
+      "html": false,
+      "runaway": false,
+      "translate": true
+    },
+    {
+      "file": "assets/app.js",
+      "line": 1997,
+      "fn": "renderSources",
+      "literal": "以太坊",
+      "interpolated": false,
+      "html": false,
+      "runaway": false,
+      "translate": true
+    },
+    {
+      "file": "assets/app.js",
+      "line": 1998,
+      "fn": "renderSources",
+      "literal": "待结算的烧毁 / 奖励",
+      "interpolated": false,
+      "html": false,
+      "runaway": false,
+      "translate": true
+    },
+    {
+      "file": "assets/app.js",
+      "line": 1998,
+      "fn": "renderSources",
+      "literal": "以太坊",
+      "interpolated": false,
+      "html": false,
+      "runaway": false,
+      "translate": true
+    },
+    {
+      "file": "assets/app.js",
+      "line": 1999,
+      "fn": "renderSources",
+      "literal": "价格下限保护（本金 / 已成交）",
+      "interpolated": false,
+      "html": false,
+      "runaway": false,
+      "translate": true
+    },
+    {
+      "file": "assets/app.js",
+      "line": 1999,
+      "fn": "renderSources",
+      "literal": "以太坊",
+      "interpolated": false,
+      "html": false,
+      "runaway": false,
+      "translate": true
+    },
+    {
+      "file": "assets/app.js",
+      "line": 2000,
+      "fn": "renderSources",
+      "literal": "价格下限保护是否被触发",
+      "interpolated": false,
+      "html": false,
+      "runaway": false,
+      "translate": true
+    },
+    {
+      "file": "assets/app.js",
+      "line": 2000,
+      "fn": "renderSources",
+      "literal": "以太坊",
+      "interpolated": false,
+      "html": false,
+      "runaway": false,
+      "translate": true
+    },
+    {
+      "file": "assets/app.js",
+      "line": 2001,
+      "fn": "renderSources",
+      "literal": "待桥接到 Base 的 IMD",
+      "interpolated": false,
+      "html": false,
+      "runaway": false,
+      "translate": true
+    },
+    {
+      "file": "assets/app.js",
+      "line": 2001,
+      "fn": "renderSources",
+      "literal": "以太坊",
+      "interpolated": false,
+      "html": false,
+      "runaway": false,
+      "translate": true
+    },
+    {
+      "file": "assets/app.js",
+      "line": 2002,
+      "fn": "renderSources",
+      "literal": "跨链预览",
+      "interpolated": false,
+      "html": false,
+      "runaway": false,
+      "translate": true
+    },
+    {
+      "file": "assets/app.js",
+      "line": 2002,
+      "fn": "renderSources",
+      "literal": "以太坊",
+      "interpolated": false,
+      "html": false,
+      "runaway": false,
+      "translate": true
+    },
+    {
+      "file": "assets/app.js",
+      "line": 2003,
+      "fn": "renderSources",
+      "literal": "奖励可释放量",
+      "interpolated": false,
+      "html": false,
+      "runaway": false,
+      "translate": true
+    },
+    {
+      "file": "assets/app.js",
+      "line": 2003,
+      "fn": "renderSources",
+      "literal": "以太坊",
+      "interpolated": false,
+      "html": false,
+      "runaway": false,
+      "translate": true
+    },
+    {
+      "file": "assets/app.js",
+      "line": 2004,
+      "fn": "renderSources",
+      "literal": "奖励分配比例",
+      "interpolated": false,
+      "html": false,
+      "runaway": false,
+      "translate": true
+    },
+    {
+      "file": "assets/app.js",
+      "line": 2004,
+      "fn": "renderSources",
+      "literal": "以太坊",
+      "interpolated": false,
+      "html": false,
+      "runaway": false,
+      "translate": true
+    },
+    {
+      "file": "assets/app.js",
+      "line": 2005,
+      "fn": "renderSources",
+      "literal": "sIMD 总资产 / 总份额",
+      "interpolated": false,
+      "html": false,
+      "runaway": false,
+      "translate": true
+    },
+    {
+      "file": "assets/app.js",
+      "line": 2005,
+      "fn": "renderSources",
+      "literal": "以太坊",
+      "interpolated": false,
+      "html": false,
+      "runaway": false,
+      "translate": true
+    },
+    {
+      "file": "assets/app.js",
+      "line": 2006,
+      "fn": "renderSources",
+      "literal": "IMD 总供应量",
+      "interpolated": false,
+      "html": false,
+      "runaway": false,
+      "translate": true
+    },
+    {
+      "file": "assets/app.js",
+      "line": 2006,
+      "fn": "renderSources",
+      "literal": "以太坊",
+      "interpolated": false,
+      "html": false,
+      "runaway": false,
+      "translate": true
+    },
+    {
+      "file": "assets/app.js",
+      "line": 2007,
+      "fn": "renderSources",
+      "literal": "两个池的价格与流动性",
+      "interpolated": false,
+      "html": false,
+      "runaway": false,
+      "translate": true
+    },
+    {
+      "file": "assets/app.js",
+      "line": 2007,
+      "fn": "renderSources",
+      "literal": "以太坊",
+      "interpolated": false,
+      "html": false,
+      "runaway": false,
+      "translate": true
+    },
+    {
+      "file": "assets/app.js",
+      "line": 2008,
+      "fn": "renderSources",
+      "literal": "ETH / USD 价格",
+      "interpolated": false,
+      "html": false,
+      "runaway": false,
+      "translate": true
+    },
+    {
+      "file": "assets/app.js",
+      "line": 2008,
+      "fn": "renderSources",
+      "literal": "以太坊",
+      "interpolated": false,
+      "html": false,
+      "runaway": false,
+      "translate": true
+    },
+    {
+      "file": "assets/app.js",
+      "line": 2009,
+      "fn": "renderSources",
+      "literal": "owner 发过的交易数",
+      "interpolated": false,
+      "html": false,
+      "runaway": false,
+      "translate": true
+    },
+    {
+      "file": "assets/app.js",
+      "line": 2009,
+      "fn": "renderSources",
+      "literal": "以太坊",
+      "interpolated": false,
+      "html": false,
+      "runaway": false,
+      "translate": true
+    },
+    {
+      "file": "assets/app.js",
+      "line": 2010,
+      "fn": "renderSources",
+      "literal": "Base 上被销毁的代币总量",
+      "interpolated": false,
+      "html": false,
+      "runaway": false,
+      "translate": true
+    },
+    {
+      "file": "assets/app.js",
+      "line": 2011,
+      "fn": "renderSources",
+      "literal": "跨链中转合约锁定的余额",
+      "interpolated": false,
+      "html": false,
+      "runaway": false,
+      "translate": true
+    },
+    {
+      "file": "assets/app.js",
+      "line": 2012,
+      "fn": "renderSources",
+      "literal": "销毁接收器当前持有量",
+      "interpolated": false,
+      "html": false,
+      "runaway": false,
+      "translate": true
+    },
+    {
+      "file": "assets/app.js",
+      "line": 2031,
+      "fn": "renderSources",
+      "literal": "<thead><tr><th>页面上的说法</th><th>链上函数</th><th>合约地址</th><th>源码行</th><th>链</th></tr></thead><tbody>${html}</tbody>",
+      "interpolated": true,
+      "html": true,
+      "runaway": false,
+      "translate": true
+    },
+    {
+      "file": "index.html",
+      "line": 7,
+      "fn": "(top level)",
+      "literal": "IMD（IdentityMD）的烧毁机制是否还在工作？距离重新点火还差多少 IMD？只读仪表盘，数据全部从链上直读，不连接钱包。",
+      "interpolated": false,
+      "html": false,
+      "runaway": false,
+      "translate": true
+    },
+    {
+      "file": "index.html",
+      "line": 370,
+      "fn": "(top level)",
+      "literal": "每次烧毁的量",
+      "interpolated": false,
+      "html": false,
+      "runaway": false,
+      "translate": true
+    }
+  ]
+}

@@ -1,0 +1,9 @@
+data/history.json
+
+# acceptance screenshots — deliverables, not site assets (~12 MB of PNG)
+shots/
+
+# translation worklists and hand-written copy blocks: build inputs, not runtime data
+data/_*.json
+data/strings-i18n*.json
+data/strings-todo.json

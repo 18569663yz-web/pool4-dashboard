@@ -1,0 +1,13 @@
+{
+  "_note": "运行期提示文案（快照过期告警等）。这些不是 lib/contracts.js 的数据字段，也不是页面静态文案，所以单独一份。",
+  "zh": {
+    "stale.hours": "{p0} 小时",
+    "stale.days": "{p0} 天",
+    "stale.banner": "<b>历史数据可能已过期。</b>页面上的历史曲线、24h/7d 趋势与链上留言时间线来自预生成快照，其中最早的一份（<code>{p1}</code>）是 {p0} 前生成的。链上实时数字（区块、点火距离、余额）不受影响。"
+  },
+  "en": {
+    "stale.hours": "{p0} hours",
+    "stale.days": "{p0} days",
+    "stale.banner": "<b>Historical data may be out of date.</b> The charts, the 24h/7d trends and the on-chain message timeline come from pre-generated snapshots; the oldest of them (<code>{p1}</code>) was built {p0} ago. Live on-chain numbers (block, ignition distance, balances) are unaffected."
+  }
+}

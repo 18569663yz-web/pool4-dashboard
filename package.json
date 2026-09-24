@@ -1,0 +1,22 @@
+{
+  "name": "pool4-dashboard",
+  "version": "1.0.0",
+  "private": true,
+  "type": "module",
+  "description": "Read-only bilingual dashboard: is the POOL4 CappedBurnHook burn engine still running, and how far is it from re-igniting?",
+  "scripts": {
+    "serve": "node scripts/serve.mjs",
+    "check": "node scripts/check.mjs",
+    "selftest": "node scripts/selftest.mjs",
+    "collect": "node scripts/collect.mjs",
+    "index": "node scripts/index-logs.mjs",
+    "build:data": "node scripts/build-data.mjs",
+    "replay": "node scripts/replay.mjs",
+    "shots": "node scripts/shoot.mjs --out shots",
+    "i18n:merge": "node scripts/merge-i18n.mjs",
+    "i18n:check": "node scripts/check-html-i18n.mjs && node scripts/check-terminology.mjs",
+    "test": "node scripts/selftest.mjs && node scripts/check.mjs && node scripts/test-simulate.mjs && node scripts/test-state-machine.mjs && node scripts/test-bridge.mjs && node scripts/check-html-i18n.mjs && node scripts/check-terminology.mjs && node scripts/preview-live.mjs && node scripts/test-render.mjs",
+    "refresh": "node scripts/index-logs.mjs && node scripts/build-data.mjs && node scripts/collect.mjs && node scripts/fetch-bridge-history.mjs"
+  },
+  "engines": { "node": ">=20" }
+}

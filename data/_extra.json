@@ -1,0 +1,18 @@
+{
+  "s.509": {
+    "zh": "<dt>现在能不能送走</dt><dd>{p0}</dd>",
+    "en": "<dt>Can it be sent right now?</dt><dd>{p0}</dd>"
+  },
+  "s.510": {
+    "zh": "不能（没有可送的量）",
+    "en": "Not yet — nothing to send"
+  },
+  "s.511": {
+    "zh": "能送 {p0} IMD <span class=\"tiny muted\">跨链费约 {p1} ETH</span>",
+    "en": "Can send {p0} IMD <span class=\"tiny muted\">bridge fee about {p1} ETH</span>"
+  },
+  "s.512": {
+    "zh": "、",
+    "en": ", "
+  }
+}

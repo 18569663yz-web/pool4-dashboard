@@ -1,0 +1,18 @@
+# scratch / research artefacts that live outside the deliverable
+_imd_research/
+node_modules/
+*.log
+
+# data/history.json IS tracked on purpose: it is the raw event index the CI refresh job
+# starts from. Without it, the first run on a runner would rescan 160k blocks (30+ min);
+# with it, every run is incremental. The workflow never commits changes to it — the file
+# is carried between runs by actions/cache instead, so the repository does not grow by
+# 7 MB every hour.
+
+# acceptance screenshots (regenerate with scripts/shoot.mjs)
+shots/
+
+# OS noise
+.DS_Store
+Thumbs.db
+desktop.ini

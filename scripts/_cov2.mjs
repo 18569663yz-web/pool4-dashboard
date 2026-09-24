@@ -1,0 +1,12 @@
+﻿import { readFileSync } from "node:fs";
+const m = JSON.parse(readFileSync("data/messages.json","utf8"));
+const zh = JSON.parse(readFileSync("data/messages.zh.json","utf8"));
+const keys = Object.keys(zh).filter(k => !k.startsWith("_"));
+console.log(`messages: ${m.messages.length}  summaries: ${keys.length}`);
+const missing = m.messages.filter(x => !(x.block in zh));
+const extra = keys.filter(k => !m.messages.some(x => String(x.block) === k));
+console.log(`missing summaries: ${missing.length}${missing.length ? " -> " + missing.map(x=>x.block).join(", ") : ""}`);
+console.log(`orphan summaries : ${extra.length}${extra.length ? " -> " + extra.join(", ") : ""}`);
+const empty = keys.filter(k => !zh[k].summary || zh[k].summary.length < 4);
+console.log(`empty/short      : ${empty.length}${empty.length ? " -> " + empty.join(", ") : ""}`);
+console.log(`reviewed=true    : ${keys.filter(k => zh[k].reviewed).length} / ${keys.length}`);

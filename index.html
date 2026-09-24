@@ -1,0 +1,456 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>IMD 烧毁引擎状态 — 它已经停了</title>
+<meta name="description" content="IMD（IdentityMD）的烧毁机制是否还在工作？距离重新点火还差多少 IMD？只读仪表盘，数据全部从链上直读，不连接钱包。" data-i18n="meta.description" data-i18n-attr="content">
+<meta name="color-scheme" content="dark">
+<link rel="stylesheet" href="assets/style.css">
+<link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'><rect width='32' height='32' rx='7' fill='%230a0b0d'/><circle cx='16' cy='16' r='7' fill='none' stroke='%23ff5d5d' stroke-width='3'/></svg>">
+</head>
+<body>
+
+<header class="top">
+  <div class="wrap">
+    <div class="brand">
+      <h1 id="page-title" data-i18n="meta.title">IMD 烧毁引擎状态</h1>
+      <span class="sub" id="page-sub">IdentityMD · Ethereum 主网 · 只读</span>
+      <div class="langswitch" id="langswitch" role="group" aria-label="Language">
+        <button type="button" id="lang-zh" data-lang="zh" class="langbtn">中文</button>
+        <button type="button" id="lang-en" data-lang="en" class="langbtn">English</button>
+      </div>
+    </div>
+    <nav class="anchors" id="anchors">
+      <a href="#summary" data-i18n="nav.summary">结论</a>
+      <a href="#evidence" data-i18n="nav.evidence">证据</a>
+      <a href="#mechanism" data-i18n="nav.mechanism">机制</a>
+      <a href="#governance" data-i18n="nav.governance">权限</a>
+      <a href="#data" data-i18n="nav.data">数据</a>
+    </nav>
+    <div class="statusline" id="statusline">
+      <span><span class="dot warn" id="dot-rpc"></span><b id="st-rpc">连接中…</b></span>
+      <span><span data-i18n="html.status.block">区块</span> <b id="st-block">—</b></span>
+      <span><span data-i18n="html.status.updated">更新于</span> <b id="st-updated">—</b></span>
+      <span><span data-i18n="html.status.next">下次</span> <b id="st-next">—</b></span>
+    </div>
+  </div>
+</header>
+
+<div class="wrap">
+
+  <div id="rpc-banner"></div>
+  <div id="stale-banner"></div>
+
+  <!-- ================= 30-SECOND SUMMARY ================= -->
+  <section id="summary" class="summary">
+    <div id="state-flip"></div>
+    <h2 class="sum-headline" id="sum-headline">正在读取链上状态…</h2>
+
+    <div class="sum-grid">
+      <div class="sum-block">
+        <h3 data-i18n="html.sum.impactTitle">这意味着什么</h3>
+        <ul id="sum-impact">
+          <li>读取中…</li>
+        </ul>
+      </div>
+      <div class="sum-block">
+        <h3 data-i18n="html.sum.recoveryTitle">什么时候会恢复</h3>
+        <p id="sum-recovery">读取中…</p>
+      </div>
+      <div class="sum-block danger">
+        <h3 data-i18n="html.sum.riskTitle">还有一件你应该知道的事</h3>
+        <p id="sum-risk">读取中…</p>
+      </div>
+    </div>
+
+    <p class="sum-jump" data-i18n="html.sum.jump">↓ 以下是全部证据与机制细节，每一项都可点开复核</p>
+  </section>
+
+  <!-- ================= WHAT IS THIS ================= -->
+  <section id="what">
+    <h2 data-i18n="html.what.title">这是什么</h2>
+    <div class="prose">
+      <p data-i18n-html="html.what.p1">
+        <b>IdentityMD（$IMD）</b> 是一个以太坊上的代币。协议自己开了一个 Uniswap v4 交易池，
+        并给它挂了一个自动程序（hook）。这个程序做的事是：
+        <b>池子里囤的 IMD 一旦超过某个数量，超出的部分就会被抽走并销毁</b>——
+        其中 85% 永久销毁，15% 分给质押者。
+      </p>
+      <p data-i18n-html="html.what.p2">
+        这个机制让 IMD 持续通缩，也是质押收益的来源。所以「它还在不在工作」直接关系到
+        <b>持币者</b>与<b>质押者</b>。
+      </p>
+      <p data-i18n-html="html.what.p3">
+        这个页面回答两个问题：<b>烧毁还在工作吗？</b>如果停了，<b>还差多少 IMD 才会重新开始？</b>
+      </p>
+
+      <div class="card" style="margin:14px 0">
+        <div class="k tiny muted" style="text-transform:uppercase;letter-spacing:.06em;margin-bottom:8px" data-i18n="html.what.quoteLabel">
+          设计意图 · 来自项目方的链上留言
+        </div>
+        <blockquote class="verbatim">
+          The hook buys tokens for cheap when pepes are selling and burns 85% and distributes the
+          rest to long term aligned holders so stakers not only make from 'tokens earned' but also
+          everyone that hodls has a bigger share of the network over time, double incentive.
+          <cite><span data-i18n="html.what.quoteSrc">区块 25,901,450 · 2026-09-04 ·</span>
+            <a href="#" id="quote-25901450" data-block="25901450" target="_blank" rel="noopener" data-i18n="html.what.quoteLink">在 Etherscan 查看原文 ↗</a>
+          </cite>
+        </blockquote>
+        <p class="tiny" style="margin:10px 0 0" data-i18n-html="html.what.quote1Note">
+          <b>也就是说</b>：这个 hook 在有人抛售时低价买入 IMD，烧掉 85%，把剩下的分给长期持有者。
+          结果是质押者赚到奖励、长期持有者的份额随时间变大——<b>双向激励</b>。
+        </p>
+        <blockquote class="verbatim" style="margin-top:12px">
+          We also got contacted by multple live tokens (some with higher market cap) that are
+          interested in using the hook, so working on making it composable for other coins
+          <cite data-i18n="html.what.quote2Src">同一区块 25,901,450</cite>
+        </blockquote>
+        <p class="tiny" style="margin:10px 0 0" data-i18n-html="html.what.quote2Note">
+          <b>它不只为 IMD 存在</b>：已有多个已上线代币（部分市值更高）联系想用这个 hook，
+          项目方正在把它做成可被其他代币复用的组件。这也解释了为什么部署器
+          （<code>CappedBurnLauncher</code>）是无许可的——任何人都能拿它开一个自己的烧毁池。
+        </p>
+      </div>
+
+      <p class="muted" data-i18n-html="html.what.readonly">
+        数据全部从以太坊和 Base 链上直接读取（只读调用，不连接钱包、不签名、不发交易），每 60 秒刷新一次。
+        每个数字旁边的 <span class="src demo">i</span> 标记点开可以看到它来自哪个合约、哪个函数。
+        读不到的数据会明确写「取不到」并说明原因，而不是显示 0。
+      </p>
+    </div>
+  </section>
+
+  <!-- ================= ON-CHAIN MESSAGES ================= -->
+  <section id="messages-section">
+    <h2 data-i18n="html.msg.title">链上留言</h2>
+    <p class="lede" id="messages-lede">
+      <b>这意味着什么：</b>项目方没有 Twitter 公告，官网文档也还没上线——
+      <b>他只在链上发留言</b>。下面这些就是原始记录，按时间倒序，原文照录。
+    </p>
+    <div class="card" id="messages-latest-card" style="display:none">
+      <div class="k tiny muted" style="text-transform:uppercase;letter-spacing:.06em;margin-bottom:8px" data-i18n="html.msg.latestLabel">最新一条 · 项目方</div>
+      <div id="messages-latest"></div>
+    </div>
+    <div class="card" style="margin-top:12px">
+      <div class="presets" id="msg-filters">
+        <button type="button" id="msgf-all" class="preset active"><span data-i18n="html.msg.filterAll">全部</span><small id="msgf-all-n">—</small></button>
+        <button type="button" id="msgf-dev" class="preset"><span data-i18n="html.msg.filterDev">项目方</span><small id="msgf-dev-n">—</small></button>
+        <button type="button" id="msgf-community" class="preset"><span data-i18n="html.msg.filterCommunity">社区</span><small id="msgf-community-n">—</small></button>
+        <button type="button" id="msgf-key" class="preset"><span data-i18n="html.msg.filterKey">重点</span><small id="msgf-key-n">—</small></button>
+      </div>
+      <div id="messages-list" style="margin-top:12px"></div>
+    </div>
+    <details class="tech">
+      <summary data-i18n="html.msg.techSummary">给技术读者的细节：数据来源与解码方式</summary>
+      <div class="note" id="messages-tech" style="margin-top:10px"></div>
+    </details>
+  </section>
+
+  <!-- ================= EVIDENCE ================= -->
+  <div class="band" id="evidence"><span data-i18n="html.band.evidence">证据</span></div>
+
+  <section id="verdict-section">
+    <h2 data-i18n="html.verdict.title">现在的状态</h2>
+    <p class="lede" id="verdict-lede">读取中…</p>
+
+    <div class="verdict" id="verdict">
+      <div class="headline">
+        <span id="v-title">读取中…</span>
+        <span class="badge-state dormant" id="v-state">—</span>
+      </div>
+      <p class="answer" id="v-answer">正在从链上读取状态…</p>
+
+      <div class="grid g2" style="align-items:end">
+        <div>
+          <div class="k tiny muted" style="text-transform:uppercase;letter-spacing:.06em;margin-bottom:4px">
+            <span data-i18n="html.verdict.gapLabel">点火距离</span> <span class="src-note" data-i18n="html.verdict.gapNote">距离重新开始烧毁还差多少 IMD</span> <span id="src-gap"></span>
+          </div>
+          <div class="bignum"><span id="v-gap">—</span><span class="unit">IMD</span></div>
+          <div class="tiny muted" id="v-gap-alt">—</div>
+          <div class="gapbar">
+            <div class="track"><div class="fill" id="v-fill" style="width:0%"></div><div class="capmark"></div></div>
+            <div class="labels"><span data-i18n="html.verdict.barLeft">0（池子里囤着的 IMD）</span><span id="v-cap-label">烧毁触发线 —</span></div>
+          </div>
+        </div>
+        <div class="grid g2" style="gap:10px">
+          <div class="stat dim"><div class="k"><span data-i18n="html.verdict.held">池子里囤着的 IMD</span> <span id="src-held"></span></div><div class="v" id="v-held">—</div></div>
+          <div class="stat dim"><div class="k"><span data-i18n="html.verdict.cap">烧毁触发线</span> <span id="src-cap"></span></div><div class="v" id="v-cap">—</div></div>
+          <div class="stat dim"><div class="k"><span data-i18n="html.verdict.pending">当前待烧毁量</span> <span id="src-pending"></span></div><div class="v" id="v-pending">—</div></div>
+          <div class="stat dim"><div class="k"><span data-i18n="html.verdict.floor">触发线的下限</span> <span id="src-floor"></span></div><div class="v" id="v-floor">—</div></div>
+        </div>
+      </div>
+    </div>
+
+    <div class="card" style="margin-top:12px">
+      <div class="k tiny muted" style="text-transform:uppercase;letter-spacing:.06em;margin-bottom:8px" data-i18n="html.verdict.statesLabel">三种状态的含义</div>
+      <div class="states" id="states"></div>
+      <div class="note" id="state-note"></div>
+    </div>
+
+    <div class="card" style="margin-top:12px">
+      <div class="k tiny muted" style="text-transform:uppercase;letter-spacing:.06em;margin-bottom:8px" data-i18n="html.verdict.flipLabel">状态变更历史（本机记录）</div>
+      <div id="fliplog"></div>
+    </div>
+  </section>
+
+  <section id="timeline-section">
+    <h2 data-i18n="html.timeline.title">熄火时间线</h2>
+    <p class="lede" id="timeline-lede">
+      <b>这意味着什么：</b>池子还在正常交易，但烧毁已经停了。
+    </p>
+    <div class="card"><div class="tl" id="timeline"></div></div>
+    <div class="note" id="timeline-note"></div>
+  </section>
+
+  <section id="doors-section">
+    <h2 data-i18n="html.doors.title">烧毁有两道门</h2>
+    <p class="lede" data-i18n-html="html.doors.lede1">
+      <b>这意味着什么：</b>即使第一道门恢复，销毁也不会自动发生——第二道门需要有人在 Base 链上主动付手续费调用。
+    </p>
+    <p class="lede" data-i18n-html="html.doors.lede2">
+      第一道门在以太坊上：池子里的 IMD 超线后被抽出来，交给一个中转合约。
+      第二道门在 Base 链上：有人把中转合约里的 IMD 跨链送过去，再调用销毁。
+      <b>两道门都要有人或程序主动推动。</b>
+    </p>
+    <div class="grid g2">
+      <div class="card">
+        <div style="font-weight:650;font-size:14px;margin-bottom:8px" data-i18n="html.doors.card1">第一道门 · 以太坊上的抽走</div>
+        <div class="kv" id="door1"></div>
+        <div class="note" id="door1-note"></div>
+      </div>
+      <div class="card">
+        <div style="font-weight:650;font-size:14px;margin-bottom:8px" data-i18n="html.doors.card2">第二道门 · Base 链上的销毁</div>
+        <div class="kv" id="door2"></div>
+        <div class="note" id="door2-note"></div>
+      </div>
+    </div>
+
+    <div class="card" style="margin-top:12px" id="awaiting-card">
+      <div style="font-weight:650;font-size:14px;margin-bottom:8px" id="awaiting-title">待桥接到 Base 销毁的 IMD</div>
+      <div class="grid g4" id="awaiting-stats"></div>
+      <div class="note" id="awaiting-note"></div>
+    </div>
+    <details class="tech">
+      <summary data-i18n="html.doors.techSummary">给技术读者的细节：跨链与销毁事件如何配对</summary>
+      <div class="note" id="door2-tech" style="margin-top:10px"></div>
+      <div class="scroll-x"><table class="tbl" id="door-table"></table></div>
+    </details>
+  </section>
+
+  <section id="pools-section">
+    <h2 id="pools-headline">只有一小部分交易会烧币</h2>
+    <p class="lede" id="pools-lede">
+      <b>这意味着什么：</b>在 IMD 上交易<b>不等于</b>会烧币。协议有两个交易池，只有一个挂了烧毁程序。
+      绝大多数交易发生在另一个池子里，<b>完全不触发烧毁</b>。
+    </p>
+    <div class="grid g3" id="volume-stats"></div>
+    <div class="scroll-x" style="margin-top:12px"><table class="tbl" id="pools"></table></div>
+    <div class="note" id="pools-note"></div>
+    <details class="tech">
+      <summary data-i18n="html.pools.techSummary">给技术读者的细节：池 ID 与识别方式</summary>
+      <div class="note" id="pools-tech" style="margin-top:10px"></div>
+    </details>
+  </section>
+
+  <!-- ================= MECHANISM ================= -->
+  <div class="band" id="mechanism"><span data-i18n="html.band.mechanism">机制</span></div>
+
+  <section id="panel-section">
+    <h2 data-i18n="html.panel.title">当前数据</h2>
+    <p class="lede" data-i18n-html="html.panel.lede">
+      <b>这意味着什么：</b>下面是这台烧毁引擎的全部关键读数，每 60 秒更新一次。
+    </p>
+    <div class="grid g3" id="panel"></div>
+    <details class="tech">
+      <summary data-i18n="html.panel.techSummary">给技术读者的细节：全部原始读数（含取不到的项与原因）</summary>
+      <div class="scroll-x" style="margin-top:10px"><table class="tbl" id="raw-table"></table></div>
+    </details>
+  </section>
+
+  <section id="simulator-section">
+    <h2 data-i18n="html.sim.title">什么时候会重新烧起来</h2>
+    <p class="lede" data-i18n-html="html.sim.lede">
+      <b>这意味着什么：</b>池子里囤的 IMD 需要涨回触发线以上。下面可以调整「每天有多少 IMD 被卖进池子」，
+      看距离归零需要多久。不输入任何参数也能看到默认结果。
+    </p>
+    <div class="card">
+      <div class="presets" id="sim-presets">
+        <button type="button" id="preset-calm" data-preset="calm" class="preset active"><span data-i18n="html.sim.presetCalm">温和流入</span><small data-i18n="html.sim.presetCalmSub">每天 +1,000 IMD</small></button>
+        <button type="button" id="preset-dump" data-preset="dump" class="preset"><span data-i18n="html.sim.presetDump">价格下跌 20%</span><small data-i18n="html.sim.presetDumpSub">IMD 相对 ETH 贬值</small></button>
+        <button type="button" id="preset-flat" data-preset="flat" class="preset"><span data-i18n="html.sim.presetFlat">什么都不发生</span><small data-i18n="html.sim.presetFlatSub">维持现状</small></button>
+        <button type="button" id="preset-custom" data-preset="custom" class="preset"><span data-i18n="html.sim.presetCustom">自定义</span><small data-i18n="html.sim.presetCustomSub">自己调下面三个滑块</small></button>
+      </div>
+      <p class="tiny muted" id="preset-hint" style="margin:8px 0 0"></p>
+
+      <div class="sim-inputs" style="margin-top:14px">
+        <div class="field">
+          <label data-i18n="html.sim.inflowLabel">每天有多少 IMD 被卖进池子（净流入）</label>
+          <div class="row"><input type="range" id="sim-inflow-r" min="0" max="40000" step="100" value="1000"></div>
+          <div class="row" style="margin-top:6px"><input type="number" id="sim-inflow" value="1000" step="100"></div>
+          <div class="hint" data-i18n="html.sim.inflowHint">有人卖出 IMD，池子里囤的量就增加，离触发线更近</div>
+        </div>
+        <div class="field">
+          <label data-i18n="html.sim.priceLabel">假设 IMD 相对 ETH 的价格变动</label>
+          <div class="row"><input type="range" id="sim-price-r" min="-80" max="80" step="1" value="0"></div>
+          <div class="row" style="margin-top:6px"><input type="number" id="sim-price" value="0" step="1"><span class="muted">%</span></div>
+          <div class="hint" data-i18n="html.sim.priceHint">IMD 贬值时，池子里囤的 IMD 数量会变多，更容易触发</div>
+        </div>
+        <div class="field">
+          <label data-i18n="html.sim.daysLabel">按这个速度持续多少天</label>
+          <div class="row"><input type="range" id="sim-days-r" min="0" max="120" step="1" value="30"></div>
+          <div class="row" style="margin-top:6px"><input type="number" id="sim-days" value="30" step="1"><span class="muted" data-i18n="html.sim.daysUnit">天</span></div>
+          <div class="hint" data-i18n="html.sim.daysHint">用来估算这段时间里会触发几次、总共烧掉多少</div>
+        </div>
+      </div>
+      <div class="sim-out" id="sim-out"></div>
+    </div>
+    <details class="tech">
+      <summary data-i18n="html.sim.techSummary">给技术读者的细节：模拟器的数学依据与已知简化</summary>
+      <div class="note" style="margin-top:10px" data-i18n-html="html.sim.techBody">
+        <code>held = L × (sqrtP − sqrtP_lower) / 2^96</code>（L339-341，向下取整）；
+        触发线下调 <code>newCap = max(cap − (cap−held)·ratchetBps/10000, cap − capDecay·elapsed/86400, capFloor)</code>（L963-969）；
+        抽走量 <code>floor(L × excess / held)</code>（L997），拆分 <code>rewarded = floor(removed × rewardShareBps / 10000)</code>（L1033-1034）。
+        <br><b>已知简化：</b>不复现 AMM 的滑点与手续费；不预测价格（价格是输入）；「净流入」在真实池子里是交易的结果，不是可以独立设定的量。
+        <br>该模型已用真实历史抽走事件做过端到端复现：算出的抽走流动性与链上事件逐 wei 相同。
+      </div>
+    </details>
+  </section>
+
+  <section id="trimnow-section">
+    <h2 data-i18n="html.trimnow.title">如果现在触发，会烧掉多少</h2>
+    <p class="lede" id="trim-now-lede"><b>这意味着什么：</b>现在没有可烧的量。</p>
+    <div class="card"><div class="grid g4" id="trim-now"></div></div>
+    <div class="note" data-i18n-html="html.trimnow.note">
+      <b>取整说明：</b>每一次抽走都各自向下取整，所以把历史上所有抽走的
+      <code>奖励 / 总量</code> 加起来会得到 <b>1499 bps</b> 而不是配置的 1500 bps。
+      <b>单次拆分精确等于 1500 bps。</b>这不是 owner 改过费率。
+    </div>
+  </section>
+
+  <section id="rewards-section">
+    <h2 data-i18n="html.rewards.title">质押收益为什么是零</h2>
+    <p class="lede" data-i18n-html="html.rewards.lede">
+      <b>这意味着什么：</b>烧毁停了，分给质押者的那 15% 也就断了。下面两个桶里的钱是设计上就留在那里的，
+      不是故障；但它们<b>可以被 owner 取走</b>。
+    </p>
+    <div class="grid g3" id="rewards"></div>
+    <details class="tech">
+      <summary data-i18n="html.rewards.techSummary">给技术读者的细节：三桶分配与滞留原因</summary>
+      <div class="note" style="margin-top:10px" data-i18n-html="html.rewards.techBody">
+        <code>RewardDistributor</code> 把奖励按 <code>stakingBps / bondingBps / nftBps</code> 分成三桶。
+        源码注释写明「Only the <b>staking</b> bucket is routed today」，bonding 与 NFT 桶只做记账，
+        等以后用 <code>emergencyWithdraw()</code>（L92-99）迁移。<b>源码里不存在 <code>BONDING_LIVE</code> 这样的开关。</b>
+        <br><code>RewardDripper</code> 的 owner 能调用 <code>rescueERC20()</code>（L178-181）提取全部奖励缓冲。
+      </div>
+    </details>
+  </section>
+
+  <section id="simd-section">
+    <h2 data-i18n="html.simd.title">sIMD 质押凭证</h2>
+    <p class="lede" data-i18n-html="html.simd.lede">
+      <b>这意味着什么：</b>下面这个兑换比例<b>不是</b>你的收益率。它绝大部分形成于金库刚部署时的一次性操作，
+      与质押奖励无关。
+    </p>
+    <div class="grid g4" id="simd"></div>
+    <div class="card" style="margin-top:12px">
+      <div style="font-weight:650;font-size:13.5px;margin-bottom:6px" data-i18n="html.simd.explainTitle">这个比例是怎么来的</div>
+      <div class="tiny" id="simd-explain"></div>
+    </div>
+  </section>
+
+  <section id="history-section">
+    <h2 data-i18n="html.history.title">烧毁的历史</h2>
+    <p class="lede" id="history-lede">
+      <b>这意味着什么：</b>这台引擎过去一直在工作，最近才停下来。
+    </p>
+    <p class="tiny muted" style="margin:-6px 0 12px">
+      <span data-i18n="html.history.srcBefore">数据来源：对合约完整生命周期的日志扫描，共</span> <span id="hist-count">—</span> <span data-i18n="html.history.srcMid">次事件，覆盖区块</span> <span id="hist-range">—</span>。
+    </p>
+    <div class="card">
+      <svg class="spark" id="spark" viewBox="0 0 800 90" preserveAspectRatio="none" role="img" aria-label="每次烧毁的量" data-i18n="spark.label" data-i18n-attr="aria-label"></svg>
+      <div class="legend">
+        <span><i style="background:var(--dead)"></i><span data-i18n="html.history.legend1">每次抽走并烧毁的 IMD</span></span>
+        <span><i style="background:var(--live)"></i><span data-i18n="html.history.legend2">价格下限保护平仓时烧毁的 IMD</span></span>
+      </div>
+      <div class="grid g4" id="hist-stats" style="margin-top:14px"></div>
+    </div>
+    <div class="note" id="hist-note"></div>
+
+    <div class="card" style="margin-top:12px">
+      <div class="k tiny muted" style="text-transform:uppercase;letter-spacing:.06em;margin-bottom:8px" data-i18n="html.history.burnrateLabel">烧毁速率</div>
+      <div id="burnrate"></div>
+    </div>
+  </section>
+
+  <!-- ================= GOVERNANCE ================= -->
+  <div class="band" id="governance"><span data-i18n="html.band.governance">权限</span></div>
+
+  <section id="owner-section">
+    <h2 data-i18n="html.owner.title">owner 能做什么</h2>
+    <p class="lede" id="owner-lede">
+      <b>这意味着什么：</b>这套系统由 6 个合约组成，<b>每个合约有自己的 owner，权限状态并不相同</b>。
+      其中 1 个已经放弃权限，另外 5 个仍由一个普通钱包控制——没有时间锁、没有多签。
+    </p>
+    <div class="grid g3" id="owner-summary"></div>
+    <div id="owner-contracts" style="margin-top:12px"></div>
+    <details class="tech">
+      <summary data-i18n="html.owner.techSummary">给技术读者的细节：全部权限函数、源码行号与作者注释原文</summary>
+      <div class="scroll-x" style="margin-top:10px"><table class="tbl" id="powers"></table></div>
+    </details>
+  </section>
+
+  <section id="monitor-section">
+    <h2 data-i18n="html.monitor.title">参数变更监控</h2>
+    <p class="lede" data-i18n-html="html.monitor.lede">
+      <b>这意味着什么：</b>只要 owner 改一个参数，本页所有结论都可能失效。所以这里逐项盯着，
+      一有变化就会高亮。记录存在你自己的浏览器里，不上传。
+    </p>
+    <div class="card">
+      <div id="monitor-status" class="tiny muted" style="margin-bottom:10px">—</div>
+      <div class="scroll-x"><table class="tbl" id="watch-table"></table></div>
+    </div>
+    <details class="tech">
+      <summary data-i18n="html.monitor.techSummary">变更历史（本机记录）</summary>
+      <div class="scroll-x" style="margin-top:10px"><table class="tbl" id="watch-log"></table></div>
+    </details>
+  </section>
+
+  <!-- ================= DATA ================= -->
+  <div class="band" id="data"><span data-i18n="html.band.data">数据</span></div>
+
+  <section id="sources-section">
+    <h2 data-i18n="html.sources.title">数据从哪来</h2>
+    <p class="lede" data-i18n-html="html.sources.lede">
+      <b>这意味着什么：</b>每个数字都能自己复核。点页面上的 <span class="src demo">i</span> 标记会显示
+      合约地址和函数名，把它贴进 Etherscan 的 Read Contract 页面就能看到同一个值。
+    </p>
+    <div class="card">
+      <div class="scroll-x"><table class="tbl" id="sources-table"></table></div>
+    </div>
+    <details class="tech">
+      <summary data-i18n="html.sources.techSummary">给技术读者的细节：源码基准与行号对照</summary>
+      <div class="note" style="margin-top:10px" data-i18n-html="html.sources.techBody1">
+        源码行号对应链上已验证的 <code>CappedBurnHook.sol</code>（1285 行，solc 0.8.30，
+        Blockscout 验证于 2026-09-19；与 Etherscan 侧缓存的副本做规范化 diff 后无内容差异）。
+        完整的机制说明、每一条结论的出处、交叉验算与历史回放对账见仓库里的 <code>NOTES.md</code>。
+        <br><span data-i18n="html.sources.techBody2">池 ID 可自行验证：<code>keccak256(abi.encode(PoolKey))</code>，池 B = </span><code id="poolid-b">—</code>。
+      </div>
+    </details>
+  </section>
+
+  <footer>
+    <p data-i18n-html="html.footer.readonly">
+      <b>只读仪表盘。</b>不连接钱包、不签名、不发交易。全部数据来自
+      <code>eth_call</code> / <code>eth_getBlockByNumber</code> / <code>eth_getTransactionCount</code> /
+      <code>eth_getBalance</code>，通过多个公共 RPC 冗余读取。
+    </p>
+    <p class="tiny" id="footer-src">—</p>
+    <p class="tiny" data-i18n="html.footer.disclaimer">独立观察工具，与 IdentityMD / POOL4 项目方无关，未经其审阅。不构成投资建议。</p>
+  </footer>
+
+</div>
+
+<script type="module" src="assets/app.js"></script>
+</body>
+</html>

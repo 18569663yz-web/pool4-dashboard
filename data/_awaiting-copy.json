@@ -1,0 +1,41 @@
+{
+    "_note":  "步骤③「待桥接到 Base 销毁的 IMD」的文案。等子代理完成步骤②后合并进 locales/*.json。",
+    "zh":  {
+               "awaiting.title":  "待桥接到 Base 销毁的 IMD",
+               "awaiting.current":  "当前待桥接量",
+               "awaiting.currentSub":  "躺在中转合约里，还没被销毁",
+               "awaiting.net24":  "24 小时净变化",
+               "awaiting.net7d":  "7 天净变化",
+               "awaiting.whoPushes":  "谁在推这道门",
+               "awaiting.moving":  "有人在推动",
+               "awaiting.growing":  "目前没人在推",
+               "awaiting.flat":  "没有变化",
+               "awaiting.noHistory":  "历史取不到",
+               "awaiting.what":  "这 \u003cb\u003e{amount} IMD\u003c/b\u003e 是\u003cb\u003e待桥接销毁\u003c/b\u003e，不是\u003cb\u003e已销毁\u003c/b\u003e。中转合约（\u003ccode\u003eBurnExecutor\u003c/code\u003e）自己不会烧币——它只是把抽走的 IMD 收在一起，等有人付手续费把它桥到 Base 链，那边才会真正销毁。",
+               "awaiting.movingExplain":  "余额有涨有跌，说明有人在推动这道门。",
+               "awaiting.growingExplain":  "余额只涨不跌，说明\u003cb\u003e第二道门目前没有人在推\u003c/b\u003e——IMD 在合约里排队，没有被送走。",
+               "awaiting.flatExplain":  "余额没有变化，既没有新的 IMD 送进来，也没有被送走。",
+               "awaiting.devQuote":  "项目方在区块 25793366 说过：\u003ci\u003e“updated the burnExecutor contract so anyone can call it, would be nice if someone creates a bot for it”\u003c/i\u003e——所以「没人在推」这件事是有原文出处的。",
+               "awaiting.noteUnavailable":  "中转合约的余额读不到，无法判断第二道门的状态。这不是 0，是未知。",
+               "awaiting.snapshotAt":  "历史点来自 {p0} 生成的快照（由链上 Transfer 日志重建），当前值每 60 秒从链上直读。"
+           },
+    "en":  {
+               "awaiting.title":  "IMD awaiting bridge to Base for burning",
+               "awaiting.current":  "Awaiting bridge right now",
+               "awaiting.currentSub":  "sitting in the waypoint contract, not yet destroyed",
+               "awaiting.net24":  "Net change, 24h",
+               "awaiting.net7d":  "Net change, 7d",
+               "awaiting.whoPushes":  "Who is pushing this door",
+               "awaiting.moving":  "someone is pushing",
+               "awaiting.growing":  "nobody is pushing",
+               "awaiting.flat":  "no movement",
+               "awaiting.noHistory":  "history unavailable",
+               "awaiting.what":  "These \u003cb\u003e{amount} IMD\u003c/b\u003e are \u003cb\u003eawaiting a bridge for burning\u003c/b\u003e — they are \u003cb\u003enot burned yet\u003c/b\u003e. The waypoint contract (\u003ccode\u003eBurnExecutor\u003c/code\u003e) does not burn anything: it collects the IMD pulled out by trims and holds it until someone pays gas to bridge it to Base, where the actual destruction happens.",
+               "awaiting.movingExplain":  "The balance has both risen and fallen, so someone is pushing this door.",
+               "awaiting.growingExplain":  "The balance has only risen, so \u003cb\u003enobody is pushing this door right now\u003c/b\u003e — IMD is queueing up in the contract instead of being sent on.",
+               "awaiting.flatExplain":  "The balance has not moved: nothing new arrived and nothing left.",
+               "awaiting.devQuote":  "The dev said at block 25793366: \u003ci\u003e“updated the burnExecutor contract so anyone can call it, would be nice if someone creates a bot for it”\u003c/i\u003e — so “nobody is pushing” is a statement with a source.",
+               "awaiting.noteUnavailable":  "The waypoint contract\u0027s balance could not be read, so the second door\u0027s state is unknown. That is not zero.",
+               "awaiting.snapshotAt":  "The historical points come from a snapshot generated at {p0}, rebuilt from on-chain Transfer logs; the current value is read straight from the chain every 60 seconds."
+           }
+}

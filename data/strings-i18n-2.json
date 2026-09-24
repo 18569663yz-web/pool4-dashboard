@@ -1,0 +1,1080 @@
+{
+  "s.395": {
+    "fn": "renderOwner",
+    "line": 1492,
+    "file": "assets/app.js",
+    "params": [],
+    "raw": "<p class=\"tiny muted\">该合约没有可直接提取资金的 owner 函数。</p>",
+    "zh": "<p class=\"tiny muted\">该合约没有可直接提取资金的 owner 函数。</p>",
+    "en": ""
+  },
+  "s.396": {
+    "fn": "renderOwner",
+    "line": 1502,
+    "file": "assets/app.js",
+    "params": [
+      "status.length"
+    ],
+    "raw": "<b>这意味着什么：</b>这套系统由 ${status.length} 个合约组成，<b>每个合约有自己的 owner，权限状态并不相同</b>。",
+    "zh": "<b>这意味着什么：</b>这套系统由 {p0} 个合约组成，<b>每个合约有自己的 owner，权限状态并不相同</b>。",
+    "en": ""
+  },
+  "s.397": {
+    "fn": "renderOwner",
+    "line": 1504,
+    "file": "assets/app.js",
+    "params": [
+      "renouncedList.map((c) => c.contract).join(\"、\")"
+    ],
+    "raw": "<b>${renouncedList.map((c) => c.contract).join(\"、\")} 已经放弃权限</b>——owner 是零地址，",
+    "zh": "<b>{p0} 已经放弃权限</b>——owner 是零地址，",
+    "en": ""
+  },
+  "s.398": {
+    "fn": "renderOwner",
+    "line": 1505,
+    "file": "assets/app.js",
+    "params": [],
+    "raw": "它的提取与冻结函数已经没有任何地址能调用。",
+    "zh": "它的提取与冻结函数已经没有任何地址能调用。",
+    "en": ""
+  },
+  "s.399": {
+    "fn": "renderOwner",
+    "line": 1508,
+    "file": "assets/app.js",
+    "params": [
+      "liveList.map((c) => c.contract).join(\"、\")"
+    ],
+    "raw": " 但 <b>${liveList.map((c) => c.contract).join(\"、\")} 仍然由一个普通钱包控制</b>，",
+    "zh": " 但 <b>{p0} 仍然由一个普通钱包控制</b>，",
+    "en": ""
+  },
+  "s.400": {
+    "fn": "renderOwner",
+    "line": 1509,
+    "file": "assets/app.js",
+    "params": [
+      "livePowers"
+    ],
+    "raw": "没有时间锁、没有多签，共 ${livePowers} 项提取或冻结类权限仍然有效。",
+    "zh": "没有时间锁、没有多签，共 {p0} 项提取或冻结类权限仍然有效。",
+    "en": ""
+  },
+  "s.401": {
+    "fn": "renderOwner",
+    "line": 1511,
+    "file": "assets/app.js",
+    "params": [],
+    "raw": " 下面按合约分别列出，不要笼统理解成「全部可控」或「全部安全」。",
+    "zh": " 下面按合约分别列出，不要笼统理解成「全部可控」或「全部安全」。",
+    "en": ""
+  },
+  "s.402": {
+    "fn": "renderOwner",
+    "line": 1529,
+    "file": "assets/app.js",
+    "params": [
+      "rows"
+    ],
+    "raw": "<thead><tr><th>级别</th><th>合约</th><th>函数 / 行号</th><th>后果</th><th>当前</th></tr></thead><tbody>${rows}</tbody>",
+    "zh": "<thead><tr><th>级别</th><th>合约</th><th>函数 / 行号</th><th>后果</th><th>当前</th></tr></thead><tbody>{p0}</tbody>",
+    "en": ""
+  },
+  "s.403": {
+    "fn": "renderMessages",
+    "line": 1549,
+    "file": "assets/app.js",
+    "params": [],
+    "raw": "<div class=\"banner info\"><span class=\"ic\">i</span><div>留言数据未生成。运行 <code>node scripts/fetch-messages.mjs</code> 后重新部署。</div></div>",
+    "zh": "<div class=\"banner info\"><span class=\"ic\">i</span><div>留言数据未生成。运行 <code>node scripts/fetch-messages.mjs</code> 后重新部署。</div></div>",
+    "en": ""
+  },
+  "s.404": {
+    "fn": "renderMessages",
+    "line": 1571,
+    "file": "assets/app.js",
+    "params": [],
+    "raw": "<b>这意味着什么：</b>项目方没有 Twitter 公告，官网文档至今是 “Coming soon”——",
+    "zh": "<b>这意味着什么：</b>项目方没有 Twitter 公告，官网文档至今是 “Coming soon”——",
+    "en": ""
+  },
+  "s.405": {
+    "fn": "renderMessages",
+    "line": 1572,
+    "file": "assets/app.js",
+    "params": [
+      "all.length",
+      "devCount"
+    ],
+    "raw": "<b>他只在链上发留言</b>。共 ${all.length} 条可读记录，其中 <b>${devCount} 条来自项目方</b>、",
+    "zh": "<b>他只在链上发留言</b>。共 {p0} 条可读记录，其中 <b>{p1} 条来自项目方</b>、",
+    "en": ""
+  },
+  "s.406": {
+    "fn": "renderMessages",
+    "line": 1573,
+    "file": "assets/app.js",
+    "params": [
+      "commCount"
+    ],
+    "raw": "${commCount} 条来自社区。下面按时间倒序，原文照录，不做解读。",
+    "zh": "{p0} 条来自社区。下面按时间倒序，原文照录，不做解读。",
+    "en": ""
+  },
+  "s.407": {
+    "fn": "renderMessages",
+    "line": 1575,
+    "file": "assets/app.js",
+    "params": [
+      "ageDays.toFixed(0)"
+    ],
+    "raw": " <b>最近一次公告：${ageDays.toFixed(0)} 天前。</b>",
+    "zh": " <b>最近一次公告：{p0} 天前。</b>",
+    "en": ""
+  },
+  "s.408": {
+    "fn": "renderMessages",
+    "line": 1577,
+    "file": "assets/app.js",
+    "params": [
+      "ageDays < 1 ? tr(\"s.380\") : ageDays.toFixed(0) + tr(\"s.381\")"
+    ],
+    "raw": " 最近一次公告：${ageDays < 1 ? tr(\"s.380\") : ageDays.toFixed(0) + tr(\"s.381\")}。",
+    "zh": " 最近一次公告：{p0}。",
+    "en": ""
+  },
+  "s.409": {
+    "fn": "renderMessages",
+    "line": 1594,
+    "file": "assets/app.js",
+    "params": [],
+    "raw": "<div class=\"tiny muted\">该分类下没有留言。</div>",
+    "zh": "<div class=\"tiny muted\">该分类下没有留言。</div>",
+    "en": ""
+  },
+  "s.410": {
+    "fn": "renderMessages",
+    "line": 1598,
+    "file": "assets/app.js",
+    "params": [
+      "esc(data.address)"
+    ],
+    "raw": "数据源：<code>GET https://eth.blockscout.com/api/v2/addresses/${esc(data.address)}/transactions</code>（免费，无需 key，",
+    "zh": "数据源：<code>GET https://eth.blockscout.com/api/v2/addresses/{p0}/transactions</code>（免费，无需 key，",
+    "en": ""
+  },
+  "s.411": {
+    "fn": "renderMessages",
+    "line": 1599,
+    "file": "assets/app.js",
+    "params": [],
+    "raw": "用响应里的 <code>next_page_params</code> 翻页；<b>不能加 <code>filter=to|from</code>，加了会返回空列表</b>）。",
+    "zh": "用响应里的 <code>next_page_params</code> 翻页；<b>不能加 <code>filter=to|from</code>，加了会返回空列表</b>）。",
+    "en": ""
+  },
+  "s.412": {
+    "fn": "renderMessages",
+    "line": 1600,
+    "file": "assets/app.js",
+    "params": [],
+    "raw": "留言就是交易的 <code>raw_input</code>：去掉 <code>0x</code> 后按 UTF-8 解码的纯文本 calldata。",
+    "zh": "留言就是交易的 <code>raw_input</code>：去掉 <code>0x</code> 后按 UTF-8 解码的纯文本 calldata。",
+    "en": ""
+  },
+  "s.413": {
+    "fn": "renderMessages",
+    "line": 1601,
+    "file": "assets/app.js",
+    "params": [
+      "data.counts.txs",
+      "data.counts.decoded",
+      "data.counts.undecodable"
+    ],
+    "raw": "<br>本次抓取：${data.counts.txs} 笔交易 → ${data.counts.decoded} 条可解码（${data.counts.undecodable} 条无法解码，多为合约调用）。",
+    "zh": "<br>本次抓取：{p0} 笔交易 → {p1} 条可解码（{p2} 条无法解码，多为合约调用）。",
+    "en": ""
+  },
+  "s.414": {
+    "fn": "renderMessages",
+    "line": 1602,
+    "file": "assets/app.js",
+    "params": [
+      "data.devAddresses.map((a) => `<code>${esc(a)"
+    ],
+    "raw": "<br>项目方地址：${data.devAddresses.map((a) => `<code>${esc(a)}</code>`).join(tr(\"s.382\"))}。",
+    "zh": "<br>项目方地址：{p0}</code>`).join(tr(\"s.382\"))}。",
+    "en": ""
+  },
+  "s.415": {
+    "fn": "renderMessages",
+    "line": 1603,
+    "file": "assets/app.js",
+    "params": [
+      "esc(data.address)"
+    ],
+    "raw": "其中 <code>${esc(data.address)}</code> 是留言板本身，项目方用「自己发给自己」的方式发布公告。",
+    "zh": "其中 <code>{p0}</code> 是留言板本身，项目方用「自己发给自己」的方式发布公告。",
+    "en": ""
+  },
+  "s.416": {
+    "fn": "renderMessages",
+    "line": 1604,
+    "file": "assets/app.js",
+    "params": [
+      "new Date(data.fetchedAt).toISOString().replace(\"T\", \" \").slice(0, 19)"
+    ],
+    "raw": "<br>抓取时间：${new Date(data.fetchedAt).toISOString().replace(\"T\", \" \").slice(0, 19)} UTC。",
+    "zh": "<br>抓取时间：{p0} UTC。",
+    "en": ""
+  },
+  "s.417": {
+    "fn": "renderMessages",
+    "line": 1605,
+    "file": "assets/app.js",
+    "params": [],
+    "raw": "这是<b>预生成快照</b>，不是实时值；重新运行脚本即可更新。",
+    "zh": "这是<b>预生成快照</b>，不是实时值；重新运行脚本即可更新。",
+    "en": ""
+  },
+  "s.418": {
+    "fn": "renderMonitor",
+    "line": 1717,
+    "file": "assets/app.js",
+    "params": [],
+    "raw": "owner 发起了交易",
+    "zh": "owner 发起了交易",
+    "en": ""
+  },
+  "s.419": {
+    "fn": "renderMonitor",
+    "line": 1720,
+    "file": "assets/app.js",
+    "params": [],
+    "raw": "eth_getTransactionCount — owner 动了手，但受监控参数未变（可能是 rescueERC20 / withdrawFees / closeMarket / setPaused）",
+    "zh": "eth_getTransactionCount — owner 动了手，但受监控参数未变（可能是 rescueERC20 / withdrawFees / closeMarket / setPaused）",
+    "en": ""
+  },
+  "s.420": {
+    "fn": "renderMonitor",
+    "line": 1738,
+    "file": "assets/app.js",
+    "params": [],
+    "raw": "<span class=\"chip\">首次运行，已建立基线</span> 从下一次刷新开始比对。",
+    "zh": "<span class=\"chip\">首次运行，已建立基线</span> 从下一次刷新开始比对。",
+    "en": ""
+  },
+  "s.421": {
+    "fn": "renderMonitor",
+    "line": 1740,
+    "file": "assets/app.js",
+    "params": [
+      "WATCHED.length"
+    ],
+    "raw": "<span class=\"chip good\">无变化</span> 自上次快照以来，全部 ${WATCHED.length} 个受监控参数与 owner nonce 均未变动。",
+    "zh": "<span class=\"chip good\">无变化</span> 自上次快照以来，全部 {p0} 个受监控参数与 owner nonce 均未变动。",
+    "en": ""
+  },
+  "s.422": {
+    "fn": "renderMonitor",
+    "line": 1741,
+    "file": "assets/app.js",
+    "params": [
+      "changes.length",
+      "paramChanged.length ? tr(\"s.383\", { p0: paramChanged.length",
+      "nonceChanged ? tr(\"s.384\") : \"\""
+    ],
+    "raw": "<span class=\"chip bad\">检测到 ${changes.length} 项变化</span> ${paramChanged.length ? tr(\"s.383\", { p0: paramChanged.length }) : \"\"}${nonceChanged ? tr(\"s.384\") : \"\"}",
+    "zh": "<span class=\"chip bad\">检测到 {p0} 项变化</span> {p1}) : \"\"}{p2}",
+    "en": ""
+  },
+  "s.423": {
+    "fn": "renderMonitor",
+    "line": 1755,
+    "file": "assets/app.js",
+    "params": [
+      "rows"
+    ],
+    "raw": "<thead><tr><th>参数</th><th>当前值</th><th>变更入口（源码）</th></tr></thead><tbody>${rows}</tbody>",
+    "zh": "<thead><tr><th>参数</th><th>当前值</th><th>变更入口（源码）</th></tr></thead><tbody>{p0}</tbody>",
+    "en": ""
+  },
+  "s.424": {
+    "fn": "renderMonitor",
+    "line": 1770,
+    "file": "assets/app.js",
+    "params": [
+      "logRows"
+    ],
+    "raw": "<thead><tr><th>首次发现</th><th>项</th><th>变化</th><th>说明</th></tr></thead><tbody>${logRows}</tbody>",
+    "zh": "<thead><tr><th>首次发现</th><th>项</th><th>变化</th><th>说明</th></tr></thead><tbody>{p0}</tbody>",
+    "en": ""
+  },
+  "s.425": {
+    "fn": "renderMonitor",
+    "line": 1771,
+    "file": "assets/app.js",
+    "params": [],
+    "raw": "<tbody><tr><td class=\"tiny muted\">本机暂无记录。监控只在你打开这个页面时运行。</td></tr></tbody>",
+    "zh": "<tbody><tr><td class=\"tiny muted\">本机暂无记录。监控只在你打开这个页面时运行。</td></tr></tbody>",
+    "en": ""
+  },
+  "s.426": {
+    "fn": "formatWatchValue",
+    "line": 1776,
+    "file": "assets/app.js",
+    "params": [],
+    "raw": "取不到",
+    "zh": "取不到",
+    "en": ""
+  },
+  "s.427": {
+    "fn": "formatWatchValue",
+    "line": 1783,
+    "file": "assets/app.js",
+    "params": [],
+    "raw": " IMD/天",
+    "zh": " IMD/天",
+    "en": ""
+  },
+  "s.428": {
+    "fn": "renderHistory",
+    "line": 1834,
+    "file": "assets/app.js",
+    "params": [],
+    "raw": "抽走并烧毁的次数",
+    "zh": "抽走并烧毁的次数",
+    "en": ""
+  },
+  "s.429": {
+    "fn": "renderHistory",
+    "line": 1836,
+    "file": "assets/app.js",
+    "params": [
+      "settles.length"
+    ],
+    "raw": "另有 ${settles.length} 次价格下限保护平仓时烧毁",
+    "zh": "另有 {p0} 次价格下限保护平仓时烧毁",
+    "en": ""
+  },
+  "s.430": {
+    "fn": "renderHistory",
+    "line": 1838,
+    "file": "assets/app.js",
+    "params": [],
+    "raw": "累计烧毁（账面）",
+    "zh": "累计烧毁（账面）",
+    "en": ""
+  },
+  "s.431": {
+    "fn": "renderHistory",
+    "line": 1838,
+    "file": "assets/app.js",
+    "params": [],
+    "raw": "两条路径合计",
+    "zh": "两条路径合计",
+    "en": ""
+  },
+  "s.432": {
+    "fn": "renderHistory",
+    "line": 1839,
+    "file": "assets/app.js",
+    "params": [],
+    "raw": "累计分出奖励（账面）",
+    "zh": "累计分出奖励（账面）",
+    "en": ""
+  },
+  "s.433": {
+    "fn": "renderHistory",
+    "line": 1841,
+    "file": "assets/app.js",
+    "params": [],
+    "raw": "单次最大烧毁",
+    "zh": "单次最大烧毁",
+    "en": ""
+  },
+  "s.434": {
+    "fn": "renderHistory",
+    "line": 1851,
+    "file": "assets/app.js",
+    "params": [
+      "trims.length"
+    ],
+    "raw": "<b>这意味着什么：</b>这台引擎过去一直在工作——总共发生过 <b>${trims.length}</b> 次抽走烧毁，",
+    "zh": "<b>这意味着什么：</b>这台引擎过去一直在工作——总共发生过 <b>{p0}</b> 次抽走烧毁，",
+    "en": ""
+  },
+  "s.435": {
+    "fn": "renderHistory",
+    "line": 1852,
+    "file": "assets/app.js",
+    "params": [
+      "settles.length"
+    ],
+    "raw": "另有 ${settles.length} 次价格下限保护平仓时烧毁。",
+    "zh": "另有 {p0} 次价格下限保护平仓时烧毁。",
+    "en": ""
+  },
+  "s.436": {
+    "fn": "renderHistory",
+    "line": 1853,
+    "file": "assets/app.js",
+    "params": [
+      "firstTrim.b.toLocaleString()",
+      "lastTrim.b.toLocaleString()"
+    ],
+    "raw": "第一次在区块 ${firstTrim.b.toLocaleString()}，最后一次在区块 ${lastTrim.b.toLocaleString()}",
+    "zh": "第一次在区块 {p0}，最后一次在区块 {p1}",
+    "en": ""
+  },
+  "s.437": {
+    "fn": "renderHistory",
+    "line": 1854,
+    "file": "assets/app.js",
+    "params": [
+      "days.toFixed(1)"
+    ],
+    "raw": "（${days.toFixed(1)} 天前）。之后就没有再发生过。",
+    "zh": "（{p0} 天前）。之后就没有再发生过。",
+    "en": ""
+  },
+  "s.438": {
+    "fn": "renderHistory",
+    "line": 1858,
+    "file": "assets/app.js",
+    "params": [],
+    "raw": "<b>这两条路径加起来</b>，与链上记录的累计烧毁量完全吻合（误差 0）。",
+    "zh": "<b>这两条路径加起来</b>，与链上记录的累计烧毁量完全吻合（误差 0）。",
+    "en": ""
+  },
+  "s.439": {
+    "fn": "renderHistory",
+    "line": 1859,
+    "file": "assets/app.js",
+    "params": [],
+    "raw": "<br><b>一个容易误会的细节：</b>如果你把历史上每一次烧毁的「奖励 ÷ 总量」都加起来，会得到 ",
+    "zh": "<br><b>一个容易误会的细节：</b>如果你把历史上每一次烧毁的「奖励 ÷ 总量」都加起来，会得到 ",
+    "en": ""
+  },
+  "s.440": {
+    "fn": "renderHistory",
+    "line": 1860,
+    "file": "assets/app.js",
+    "params": [],
+    "raw": "<b>1499 bps</b>，而不是配置的 1500 bps。原因是每一次烧毁都各自向下取整，累加后必然略低。",
+    "zh": "<b>1499 bps</b>，而不是配置的 1500 bps。原因是每一次烧毁都各自向下取整，累加后必然略低。",
+    "en": ""
+  },
+  "s.441": {
+    "fn": "renderHistory",
+    "line": 1861,
+    "file": "assets/app.js",
+    "params": [],
+    "raw": "<b>单次拆分是精确的 1500 bps</b>——这不是 owner 改过费率。",
+    "zh": "<b>单次拆分是精确的 1500 bps</b>——这不是 owner 改过费率。",
+    "en": ""
+  },
+  "s.442": {
+    "fn": "renderHistory",
+    "line": 1862,
+    "file": "assets/app.js",
+    "params": [],
+    "raw": "<details class=\"tech\" style=\"margin-top:10px\"><summary>给技术读者的细节：取整来源与对账方式</summary>",
+    "zh": "<details class=\"tech\" style=\"margin-top:10px\"><summary>给技术读者的细节：取整来源与对账方式</summary>",
+    "en": ""
+  },
+  "s.443": {
+    "fn": "renderHistory",
+    "line": 1863,
+    "file": "assets/app.js",
+    "params": [],
+    "raw": "<div class=\"note\">每条 <code>Trimmed</code> / <code>BackstopSettled</code> 事件里的 ",
+    "zh": "<div class=\"note\">每条 <code>Trimmed</code> / <code>BackstopSettled</code> 事件里的 ",
+    "en": ""
+  },
+  "s.444": {
+    "fn": "renderHistory",
+    "line": 1864,
+    "file": "assets/app.js",
+    "params": [],
+    "raw": "<code>tokensRewarded</code> 都等于 <code>floor(tokensRemoved × 1500 / 10000)</code>（L1033），",
+    "zh": "<code>tokensRewarded</code> 都等于 <code>floor(tokensRemoved × 1500 / 10000)</code>（L1033），",
+    "en": ""
+  },
+  "s.445": {
+    "fn": "renderHistory",
+    "line": 1865,
+    "file": "assets/app.js",
+    "params": [],
+    "raw": "余数归入 <code>tokensBurned</code>（L1034）。<code>totalBurned()</code> 由两条路径共同累加：",
+    "zh": "余数归入 <code>tokensBurned</code>（L1034）。<code>totalBurned()</code> 由两条路径共同累加：",
+    "en": ""
+  },
+  "s.446": {
+    "fn": "renderHistory",
+    "line": 1866,
+    "file": "assets/app.js",
+    "params": [],
+    "raw": "trim（L1004）与 backstop 平仓（L741）——只用 trim 对账会差 4,306 IMD。",
+    "zh": "trim（L1004）与 backstop 平仓（L741）——只用 trim 对账会差 4,306 IMD。",
+    "en": ""
+  },
+  "s.447": {
+    "fn": "renderHistory",
+    "line": 1867,
+    "file": "assets/app.js",
+    "params": [
+      "firstTrim ? firstTrim.b.toLocaleString() : \"—\"",
+      "lastTrim ? lastTrim.b.toLocaleString() : \"—\""
+    ],
+    "raw": "首次 trim 区块 ${firstTrim ? firstTrim.b.toLocaleString() : \"—\"}，最后一次 ${lastTrim ? lastTrim.b.toLocaleString() : \"—\"}。</div></details>",
+    "zh": "首次 trim 区块 {p0}，最后一次 {p1}。</div></details>",
+    "en": ""
+  },
+  "s.448": {
+    "fn": "renderPools",
+    "line": 1877,
+    "file": "assets/app.js",
+    "params": [],
+    "raw": "池 A（没有烧毁程序）",
+    "zh": "池 A（没有烧毁程序）",
+    "en": ""
+  },
+  "s.449": {
+    "fn": "renderPools",
+    "line": 1877,
+    "file": "assets/app.js",
+    "params": [],
+    "raw": "0x0（无）",
+    "zh": "0x0（无）",
+    "en": ""
+  },
+  "s.450": {
+    "fn": "renderPools",
+    "line": 1877,
+    "file": "assets/app.js",
+    "params": [],
+    "raw": "不烧币",
+    "zh": "不烧币",
+    "en": ""
+  },
+  "s.451": {
+    "fn": "renderPools",
+    "line": 1878,
+    "file": "assets/app.js",
+    "params": [],
+    "raw": "池 B（挂了烧毁程序）",
+    "zh": "池 B（挂了烧毁程序）",
+    "en": ""
+  },
+  "s.452": {
+    "fn": "renderPools",
+    "line": 1878,
+    "file": "assets/app.js",
+    "params": [],
+    "raw": "会触发烧毁",
+    "zh": "会触发烧毁",
+    "en": ""
+  },
+  "s.453": {
+    "fn": "renderPools",
+    "line": 1900,
+    "file": "assets/app.js",
+    "params": [
+      "rows"
+    ],
+    "raw": "<thead><tr><th>交易池</th><th>手续费</th><th>价格粒度</th><th>挂载的程序</th><th>是否烧币</th><th>当前价格 tick</th><th>流动性</th><th>1 IMD 值多少 ETH</th></tr></thead><tbody>${rows}</tbody>",
+    "zh": "<thead><tr><th>交易池</th><th>手续费</th><th>价格粒度</th><th>挂载的程序</th><th>是否烧币</th><th>当前价格 tick</th><th>流动性</th><th>1 IMD 值多少 ETH</th></tr></thead><tbody>{p0}</tbody>",
+    "en": ""
+  },
+  "s.454": {
+    "fn": "renderPools",
+    "line": 1904,
+    "file": "assets/app.js",
+    "params": [],
+    "raw": "池 A 的 <code>hooks = 0x0</code>，<b>完全不经过烧毁引擎</b>——在池 A 上卖出 IMD 不会烧掉任何东西。",
+    "zh": "池 A 的 <code>hooks = 0x0</code>，<b>完全不经过烧毁引擎</b>——在池 A 上卖出 IMD 不会烧掉任何东西。",
+    "en": ""
+  },
+  "s.455": {
+    "fn": "renderPools",
+    "line": 1905,
+    "file": "assets/app.js",
+    "params": [],
+    "raw": "只有池 B 的 swap 会触发 <code>afterSwap → _applyCap()</code>。",
+    "zh": "只有池 B 的 swap 会触发 <code>afterSwap → _applyCap()</code>。",
+    "en": ""
+  },
+  "s.456": {
+    "fn": "renderPools",
+    "line": 1906,
+    "file": "assets/app.js",
+    "params": [],
+    "raw": "<br>两个池的 poolId 由 <code>keccak256(abi.encode(PoolKey))</code> 计算，",
+    "zh": "<br>两个池的 poolId 由 <code>keccak256(abi.encode(PoolKey))</code> 计算，",
+    "en": ""
+  },
+  "s.457": {
+    "fn": "renderPools",
+    "line": 1907,
+    "file": "assets/app.js",
+    "params": [],
+    "raw": "已用 ethers v6 独立交叉验证；池 A 的结果与公开的已知值一致。",
+    "zh": "已用 ethers v6 独立交叉验证；池 A 的结果与公开的已知值一致。",
+    "en": ""
+  },
+  "s.458": {
+    "fn": "renderPools",
+    "line": 1908,
+    "file": "assets/app.js",
+    "params": [
+      "esc(ADDR.stateView)"
+    ],
+    "raw": "也可直接在 <code>StateView</code>（${esc(ADDR.stateView)}）上复核。",
+    "zh": "也可直接在 <code>StateView</code>（{p0}）上复核。",
+    "en": ""
+  },
+  "s.459": {
+    "fn": "renderPools",
+    "line": 1909,
+    "file": "assets/app.js",
+    "params": [],
+    "raw": "<br>交易量口径：过去 24 小时两个池的 <code>Swap</code> 事件，按 ETH 侧绝对流量统计；",
+    "zh": "<br>交易量口径：过去 24 小时两个池的 <code>Swap</code> 事件，按 ETH 侧绝对流量统计；",
+    "en": ""
+  },
+  "s.460": {
+    "fn": "renderPools",
+    "line": 1910,
+    "file": "assets/app.js",
+    "params": [],
+    "raw": "脚本 <code>scripts/scan-swaps.mjs</code> 可复现。",
+    "zh": "脚本 <code>scripts/scan-swaps.mjs</code> 可复现。",
+    "en": ""
+  },
+  "s.461": {
+    "fn": "renderFooter",
+    "line": 1920,
+    "file": "assets/app.js",
+    "params": [
+      "esc(s.endpoint)",
+      "s.blockNumber.toLocaleString()"
+    ],
+    "raw": "当前 RPC：${esc(s.endpoint)} · 以太坊区块 ${s.blockNumber.toLocaleString()} · ",
+    "zh": "当前 RPC：{p0} · 以太坊区块 {p1} · ",
+    "en": ""
+  },
+  "s.462": {
+    "fn": "renderFooter",
+    "line": 1921,
+    "file": "assets/app.js",
+    "params": [
+      "s.base && s.base.blockNumber ? s.base.blockNumber.toLocaleString() : tr(\"s.385\")"
+    ],
+    "raw": "Base 区块 ${s.base && s.base.blockNumber ? s.base.blockNumber.toLocaleString() : tr(\"s.385\")} · ",
+    "zh": "Base 区块 {p0} · ",
+    "en": ""
+  },
+  "s.463": {
+    "fn": "renderFooter",
+    "line": 1922,
+    "file": "assets/app.js",
+    "params": [
+      "errs"
+    ],
+    "raw": "读取耗时与失败项：${errs} 项失败 · ",
+    "zh": "读取耗时与失败项：{p0} 项失败 · ",
+    "en": ""
+  },
+  "s.464": {
+    "fn": "renderFooter",
+    "line": 1923,
+    "file": "assets/app.js",
+    "params": [
+      "esc(POOL_IDS.B)"
+    ],
+    "raw": "池 B poolId ${esc(POOL_IDS.B)}",
+    "zh": "池 B poolId {p0}",
+    "en": ""
+  },
+  "s.465": {
+    "fn": "renderFooter",
+    "line": 1936,
+    "file": "assets/app.js",
+    "params": [],
+    "raw": "假设每天有 1,000 个 IMD 被卖进池子。这会让池子里的存量慢慢逼近触发线。",
+    "zh": "假设每天有 1,000 个 IMD 被卖进池子。这会让池子里的存量慢慢逼近触发线。",
+    "en": ""
+  },
+  "s.466": {
+    "fn": "renderFooter",
+    "line": 1942,
+    "file": "assets/app.js",
+    "params": [],
+    "raw": "假设 IMD 相对 ETH 贬值 20%。池子里的 IMD 数量会因此变多，离触发线更近——但要注意这不等于有人真的在卖。",
+    "zh": "假设 IMD 相对 ETH 贬值 20%。池子里的 IMD 数量会因此变多，离触发线更近——但要注意这不等于有人真的在卖。",
+    "en": ""
+  },
+  "s.467": {
+    "fn": "renderFooter",
+    "line": 1948,
+    "file": "assets/app.js",
+    "params": [],
+    "raw": "维持现状：没人净卖出，价格不变。距离不会自己缩短。",
+    "zh": "维持现状：没人净卖出，价格不变。距离不会自己缩短。",
+    "en": ""
+  },
+  "s.468": {
+    "fn": "applyPreset",
+    "line": 1973,
+    "file": "assets/app.js",
+    "params": [],
+    "raw": "拖动下面任意滑块即可自定义。",
+    "zh": "拖动下面任意滑块即可自定义。",
+    "en": ""
+  },
+  "s.469": {
+    "fn": "renderSources",
+    "line": 1993,
+    "file": "assets/app.js",
+    "params": [],
+    "raw": "池子里囤着的 IMD / 池子里的 ETH",
+    "zh": "池子里囤着的 IMD / 池子里的 ETH",
+    "en": ""
+  },
+  "s.470": {
+    "fn": "renderSources",
+    "line": 1993,
+    "file": "assets/app.js",
+    "params": [],
+    "raw": "以太坊",
+    "zh": "以太坊",
+    "en": ""
+  },
+  "s.471": {
+    "fn": "renderSources",
+    "line": 1994,
+    "file": "assets/app.js",
+    "params": [],
+    "raw": "点火距离（权威值）",
+    "zh": "点火距离（权威值）",
+    "en": ""
+  },
+  "s.472": {
+    "fn": "renderSources",
+    "line": 1994,
+    "file": "assets/app.js",
+    "params": [],
+    "raw": "以太坊",
+    "zh": "以太坊",
+    "en": ""
+  },
+  "s.473": {
+    "fn": "renderSources",
+    "line": 1995,
+    "file": "assets/app.js",
+    "params": [],
+    "raw": "烧毁触发线 / 触发线的下限",
+    "zh": "烧毁触发线 / 触发线的下限",
+    "en": ""
+  },
+  "s.474": {
+    "fn": "renderSources",
+    "line": 1995,
+    "file": "assets/app.js",
+    "params": [],
+    "raw": "以太坊",
+    "zh": "以太坊",
+    "en": ""
+  },
+  "s.475": {
+    "fn": "renderSources",
+    "line": 1996,
+    "file": "assets/app.js",
+    "params": [],
+    "raw": "触发线下调速度 / 比例",
+    "zh": "触发线下调速度 / 比例",
+    "en": ""
+  },
+  "s.476": {
+    "fn": "renderSources",
+    "line": 1996,
+    "file": "assets/app.js",
+    "params": [],
+    "raw": "以太坊",
+    "zh": "以太坊",
+    "en": ""
+  },
+  "s.477": {
+    "fn": "renderSources",
+    "line": 1997,
+    "file": "assets/app.js",
+    "params": [],
+    "raw": "累计烧毁 / 累计奖励",
+    "zh": "累计烧毁 / 累计奖励",
+    "en": ""
+  },
+  "s.478": {
+    "fn": "renderSources",
+    "line": 1997,
+    "file": "assets/app.js",
+    "params": [],
+    "raw": "以太坊",
+    "zh": "以太坊",
+    "en": ""
+  },
+  "s.479": {
+    "fn": "renderSources",
+    "line": 1998,
+    "file": "assets/app.js",
+    "params": [],
+    "raw": "待结算的烧毁 / 奖励",
+    "zh": "待结算的烧毁 / 奖励",
+    "en": ""
+  },
+  "s.480": {
+    "fn": "renderSources",
+    "line": 1998,
+    "file": "assets/app.js",
+    "params": [],
+    "raw": "以太坊",
+    "zh": "以太坊",
+    "en": ""
+  },
+  "s.481": {
+    "fn": "renderSources",
+    "line": 1999,
+    "file": "assets/app.js",
+    "params": [],
+    "raw": "价格下限保护（本金 / 已成交）",
+    "zh": "价格下限保护（本金 / 已成交）",
+    "en": ""
+  },
+  "s.482": {
+    "fn": "renderSources",
+    "line": 1999,
+    "file": "assets/app.js",
+    "params": [],
+    "raw": "以太坊",
+    "zh": "以太坊",
+    "en": ""
+  },
+  "s.483": {
+    "fn": "renderSources",
+    "line": 2000,
+    "file": "assets/app.js",
+    "params": [],
+    "raw": "价格下限保护是否被触发",
+    "zh": "价格下限保护是否被触发",
+    "en": ""
+  },
+  "s.484": {
+    "fn": "renderSources",
+    "line": 2000,
+    "file": "assets/app.js",
+    "params": [],
+    "raw": "以太坊",
+    "zh": "以太坊",
+    "en": ""
+  },
+  "s.485": {
+    "fn": "renderSources",
+    "line": 2001,
+    "file": "assets/app.js",
+    "params": [],
+    "raw": "待桥接到 Base 的 IMD",
+    "zh": "待桥接到 Base 的 IMD",
+    "en": ""
+  },
+  "s.486": {
+    "fn": "renderSources",
+    "line": 2001,
+    "file": "assets/app.js",
+    "params": [],
+    "raw": "以太坊",
+    "zh": "以太坊",
+    "en": ""
+  },
+  "s.487": {
+    "fn": "renderSources",
+    "line": 2002,
+    "file": "assets/app.js",
+    "params": [],
+    "raw": "跨链预览",
+    "zh": "跨链预览",
+    "en": ""
+  },
+  "s.488": {
+    "fn": "renderSources",
+    "line": 2002,
+    "file": "assets/app.js",
+    "params": [],
+    "raw": "以太坊",
+    "zh": "以太坊",
+    "en": ""
+  },
+  "s.489": {
+    "fn": "renderSources",
+    "line": 2003,
+    "file": "assets/app.js",
+    "params": [],
+    "raw": "奖励可释放量",
+    "zh": "奖励可释放量",
+    "en": ""
+  },
+  "s.490": {
+    "fn": "renderSources",
+    "line": 2003,
+    "file": "assets/app.js",
+    "params": [],
+    "raw": "以太坊",
+    "zh": "以太坊",
+    "en": ""
+  },
+  "s.491": {
+    "fn": "renderSources",
+    "line": 2004,
+    "file": "assets/app.js",
+    "params": [],
+    "raw": "奖励分配比例",
+    "zh": "奖励分配比例",
+    "en": ""
+  },
+  "s.492": {
+    "fn": "renderSources",
+    "line": 2004,
+    "file": "assets/app.js",
+    "params": [],
+    "raw": "以太坊",
+    "zh": "以太坊",
+    "en": ""
+  },
+  "s.493": {
+    "fn": "renderSources",
+    "line": 2005,
+    "file": "assets/app.js",
+    "params": [],
+    "raw": "sIMD 总资产 / 总份额",
+    "zh": "sIMD 总资产 / 总份额",
+    "en": ""
+  },
+  "s.494": {
+    "fn": "renderSources",
+    "line": 2005,
+    "file": "assets/app.js",
+    "params": [],
+    "raw": "以太坊",
+    "zh": "以太坊",
+    "en": ""
+  },
+  "s.495": {
+    "fn": "renderSources",
+    "line": 2006,
+    "file": "assets/app.js",
+    "params": [],
+    "raw": "IMD 总供应量",
+    "zh": "IMD 总供应量",
+    "en": ""
+  },
+  "s.496": {
+    "fn": "renderSources",
+    "line": 2006,
+    "file": "assets/app.js",
+    "params": [],
+    "raw": "以太坊",
+    "zh": "以太坊",
+    "en": ""
+  },
+  "s.497": {
+    "fn": "renderSources",
+    "line": 2007,
+    "file": "assets/app.js",
+    "params": [],
+    "raw": "两个池的价格与流动性",
+    "zh": "两个池的价格与流动性",
+    "en": ""
+  },
+  "s.498": {
+    "fn": "renderSources",
+    "line": 2007,
+    "file": "assets/app.js",
+    "params": [],
+    "raw": "以太坊",
+    "zh": "以太坊",
+    "en": ""
+  },
+  "s.499": {
+    "fn": "renderSources",
+    "line": 2008,
+    "file": "assets/app.js",
+    "params": [],
+    "raw": "ETH / USD 价格",
+    "zh": "ETH / USD 价格",
+    "en": ""
+  },
+  "s.500": {
+    "fn": "renderSources",
+    "line": 2008,
+    "file": "assets/app.js",
+    "params": [],
+    "raw": "以太坊",
+    "zh": "以太坊",
+    "en": ""
+  },
+  "s.501": {
+    "fn": "renderSources",
+    "line": 2009,
+    "file": "assets/app.js",
+    "params": [],
+    "raw": "owner 发过的交易数",
+    "zh": "owner 发过的交易数",
+    "en": ""
+  },
+  "s.502": {
+    "fn": "renderSources",
+    "line": 2009,
+    "file": "assets/app.js",
+    "params": [],
+    "raw": "以太坊",
+    "zh": "以太坊",
+    "en": ""
+  },
+  "s.503": {
+    "fn": "renderSources",
+    "line": 2010,
+    "file": "assets/app.js",
+    "params": [],
+    "raw": "Base 上被销毁的代币总量",
+    "zh": "Base 上被销毁的代币总量",
+    "en": ""
+  },
+  "s.504": {
+    "fn": "renderSources",
+    "line": 2011,
+    "file": "assets/app.js",
+    "params": [],
+    "raw": "跨链中转合约锁定的余额",
+    "zh": "跨链中转合约锁定的余额",
+    "en": ""
+  },
+  "s.505": {
+    "fn": "renderSources",
+    "line": 2012,
+    "file": "assets/app.js",
+    "params": [],
+    "raw": "销毁接收器当前持有量",
+    "zh": "销毁接收器当前持有量",
+    "en": ""
+  },
+  "s.506": {
+    "fn": "renderSources",
+    "line": 2031,
+    "file": "assets/app.js",
+    "params": [
+      "html"
+    ],
+    "raw": "<thead><tr><th>页面上的说法</th><th>链上函数</th><th>合约地址</th><th>源码行</th><th>链</th></tr></thead><tbody>${html}</tbody>",
+    "zh": "<thead><tr><th>页面上的说法</th><th>链上函数</th><th>合约地址</th><th>源码行</th><th>链</th></tr></thead><tbody>{p0}</tbody>",
+    "en": ""
+  }
+}

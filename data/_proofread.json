@@ -1,0 +1,35 @@
+{
+  "_note": "校对修正。merge-i18n.mjs 对 copy block 的键以本文件为准覆盖 locales（含 zh），所以这里的每一条都是权威值。判据见 scripts/check-terminology.mjs。",
+  "zh": {
+    "s.341": "账面兑换率，不是你的收益率",
+    "s.060": "<br>池子里的 IMD 已经越过触发线，下一笔交易就会触发抽走并烧毁。",
+    "s.504": "跨链适配器锁定的余额",
+    "html.doors.lede2": "第一道门在以太坊上：池子里的 IMD 超线后被抽出来，交给一个中转合约。第二道门在 Base 链上：有人把中转合约里的 IMD 跨链送过去，再调用销毁。两道门都要有人或程序主动推动。",
+    "state.critical.name": "临界 · 触发线还在降",
+    "s.159": "临界 · 触发线还在降",
+    "fliplog.empty": "还没有记录到状态变化。这个记录从你第一次打开页面时开始，存在你自己的浏览器里（localStorage），不上传。<br>当前状态会被持续比对；一旦从「已停 / 临界 / 贴着触发线 / 正在烧毁」中的任何一个切换到另一个，就会在这里留下一条带区块号和触发原因的记录。",
+    "s.026": "<br>当前状态会被持续比对；一旦从「已停 / 临界 / 贴着触发线 / 正在烧毁」中的任何一个切换到另一个，",
+    "s.010": "触发线日降幅 capDecayTokensPerDay",
+    "s.011": "触发线跟随比例 ratchetBps",
+    "s.165": "触发线 {p0} > 最低值 {p1}，距离会自己缩短",
+    "s.177": " <b>注意：触发线的自动下调已经被参数关掉了。</b>",
+    "s.140": "这个位置很微妙：多一个 IMD 就会触发销毁，少一个就不会。",
+    "owner.what.imdSetPeer": "改跨链对端：可以把 Base 侧的接收合约改成任意地址，从而改变跨链销毁的落点"
+  },
+  "en": {
+    "s.341": "book redemption rate, not your yield",
+    "s.060": "<br>The pool's IMD has crossed the trigger line; the next swap will trim and burn.",
+    "s.504": "Balance locked in the bridge adapter",
+    "html.doors.lede2": "The first door is on Ethereum: once the IMD in the pool passes the line it is pulled out and handed to a waypoint contract. The second door is on Base: someone bridges the IMD out of that waypoint contract and calls burn. Both of the two doors need someone to push them — a person or a bot.",
+    "state.critical.name": "Critical · trigger line still falling",
+    "s.159": "Critical · trigger line still falling",
+    "fliplog.empty": "No state change recorded yet. This log starts the first time you open the page and is kept in your own browser (localStorage) — nothing is uploaded.<br>The current state is compared continuously; any switch between stopped / critical / at the trigger line / burning leaves an entry here with its block number and the reason it happened.",
+    "s.026": "<br>The current state is compared continuously; any switch between stopped / critical / at the trigger line / burning ",
+    "s.010": "Daily trigger-line decay capDecayTokensPerDay",
+    "s.011": "Trigger-line follow ratio ratchetBps",
+    "s.165": "Trigger line {p0} > floor {p1}, so the gap closes on its own",
+    "s.177": " <b>Note: the automatic trigger-line ratchet has been switched off by a parameter.</b>",
+    "s.140": "That is a delicate spot: one more IMD and it burns, one fewer and it does not.",
+    "owner.what.imdSetPeer": "Changes the bridge peer: the receiving contract on Base can be pointed at any address, which changes where bridged tokens are burned."
+  }
+}

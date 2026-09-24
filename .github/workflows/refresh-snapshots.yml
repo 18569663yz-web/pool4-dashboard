@@ -1,0 +1,83 @@
+name: refresh snapshots
+
+# Keeps the five pre-generated snapshots current. The page's most valuable sections are
+# the historical ones (trim curve, 24h/7d trends, message timeline) and a stale copy of
+# them is worse than none — so this runs hourly and the page shows a banner once the
+# oldest snapshot passes three hours.
+#
+# Nothing is written to data/ until it has been validated: scripts/refresh-snapshots.mjs
+# generates into a staging directory, scripts/verify-snapshots.mjs checks both the shape
+# and the "history did not go backwards" property, and only then are the files promoted.
+# A failure leaves data/ untouched and exits non-zero, so the commit step never runs.
+
+on:
+  schedule:
+    # Deliberately not on the hour: every cron-driven project on GitHub fires at :00.
+    - cron: "17 * * * *"
+  workflow_dispatch: # manual trigger, for testing and for the first run
+
+permissions:
+  contents: write
+
+# Never let two refreshes race for the same files.
+concurrency:
+  group: refresh-snapshots
+  cancel-in-progress: false
+
+jobs:
+  refresh:
+    runs-on: ubuntu-latest
+    timeout-minutes: 60
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+
+      # data/history.json is the raw event index: 7 MB, regenerable, and the input
+      # build-data.mjs turns into timeline.json + base.json. It ships in the repository as
+      # a cold-start baseline; this cache keeps the hourly runs incremental (~2k blocks)
+      # instead of rescanning 160k.
+      - name: Restore the event index
+        uses: actions/cache@v4
+        with:
+          path: data/history.json
+          key: pool4-history-${{ github.run_id }}
+          restore-keys: |
+            pool4-history-
+
+      # Optional repository variable. Public endpoints differ in behaviour between a
+      # laptop and a runner; setting POOL4_RPC_URLS redirects every script without
+      # touching the defaults that local runs use.
+      - name: Refresh (staged and verified)
+        env:
+          POOL4_RPC_URLS: ${{ vars.POOL4_RPC_URLS }}
+        run: node scripts/refresh-snapshots.mjs
+
+      - name: Commit if anything actually changed
+        run: |
+          set -euo pipefail
+          FILES="data/timeline.json data/base.json data/volume.json data/messages.json data/bridge-history.json data/baseline.json"
+          if git diff --quiet -- $FILES; then
+            echo "no snapshot changed since the last run; nothing to commit"
+            exit 0
+          fi
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add $FILES
+          git commit -m "chore(snapshots): hourly refresh [skip ci]"
+          git push
+
+      - name: Summarise what changed
+        if: always()
+        run: |
+          echo "### snapshot refresh" >> $GITHUB_STEP_SUMMARY
+          if git diff --quiet -- data/timeline.json data/base.json data/volume.json data/messages.json data/bridge-history.json data/baseline.json; then
+            echo "No changes (or the run failed before promoting anything)." >> $GITHUB_STEP_SUMMARY
+          else
+            echo '```' >> $GITHUB_STEP_SUMMARY
+            git diff --stat -- data/timeline.json data/base.json data/volume.json data/messages.json data/bridge-history.json data/baseline.json >> $GITHUB_STEP_SUMMARY
+            echo '```' >> $GITHUB_STEP_SUMMARY
+          fi

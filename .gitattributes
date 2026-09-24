@@ -1,0 +1,12 @@
+# Every text file stays LF on every platform.
+#
+# The refresh job compares snapshots byte-for-byte to decide whether anything changed,
+# and a CRLF checkout on Windows would make each of them look modified every hour — an
+# empty commit per hour, which is exactly what the workflow is written to avoid.
+* text=auto eol=lf
+
+# Binary artefacts
+*.png binary
+*.jpg binary
+*.webp binary
+*.ico binary
