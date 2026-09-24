@@ -542,8 +542,8 @@
   "s.401": " 下面按合约分别列出，不要笼统理解成「全部可控」或「全部安全」。",
   "s.402": "<thead><tr><th>级别</th><th>合约</th><th>函数 / 行号</th><th>后果</th><th>当前</th></tr></thead><tbody>{p0}</tbody>",
   "s.403": "<div class=\"banner info\"><span class=\"ic\">i</span><div>留言数据未生成。运行 <code>node scripts/fetch-messages.mjs</code> 后重新部署。</div></div>",
-  "s.404": "<b>这意味着什么：</b>项目方没有 Twitter 公告，官网文档至今是 “Coming soon”——",
-  "s.405": "<b>他只在链上发留言</b>。共 {p0} 条可读记录，其中 <b>{p1} 条来自项目方</b>、",
+  "s.404": "<b>这意味着什么：</b>项目方把公告直接写在链上 —— 官网 imd.fun 与 API 文档已经上线，但这里仍是公告的第一现场。",
+  "s.405": "<b>共 {p0} 条可读记录</b>，其中 <b>{p1} 条来自项目方</b>、",
   "s.406": "{p0} 条来自社区。下面按时间倒序，原文照录，不做解读。",
   "s.407": " <b>最近一次公告：{p0} 天前。</b>",
   "s.408": " 最近一次公告：{p0}。",
@@ -788,5 +788,10 @@
   "awaiting.snapshotAt": "历史点来自 {p0} 生成的快照（由链上 Transfer 日志重建），当前值每 60 秒从链上直读。",
   "stale.hours": "{p0} 小时",
   "stale.days": "{p0} 天",
-  "stale.banner": "<b>历史数据可能已过期。</b>页面上的历史曲线、24h/7d 趋势与链上留言时间线来自预生成快照，其中最早的一份（<code>{p1}</code>）是 {p0} 前生成的。链上实时数字（区块、点火距离、余额）不受影响。"
+  "stale.banner": "<b>历史数据可能已过期。</b>页面上的历史曲线、24h/7d 趋势与链上留言时间线来自预生成快照，其中最早的一份（<code>{p1}</code>）是 {p0} 前生成的。链上实时数字（区块、点火距离、余额）不受影响。",
+  "html.band.conclusion": "结论",
+  "html.official.label": "官方入口",
+  "html.official.docs": "文档",
+  "html.official.explorer": "浏览器",
+  "html.official.stake": "质押"
 }

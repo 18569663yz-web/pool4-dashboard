@@ -2214,6 +2214,26 @@ function bindSlider(numId, rangeId) {
 }
 
 function init() {
+  /* Collapsible groups: a nav link has to open the group it points into. Otherwise clicking
+   * "机制" scrolls to a closed <details> and looks broken — the heading is there, the content
+   * is not. A direct link that carries a hash is the same case. */
+  const openGroupFor = (hash) => {
+    if (!hash || hash === "#") return;
+    let target = null;
+    try {
+      target = document.querySelector(hash);
+    } catch {
+      return; // a malformed hash is not worth throwing over
+    }
+    const group = target && target.closest("details.group");
+    if (group) group.open = true;
+  };
+  for (const a of document.querySelectorAll(".anchors a")) {
+    a.addEventListener("click", () => openGroupFor(a.getAttribute("href")));
+  }
+  window.addEventListener("hashchange", () => openGroupFor(location.hash));
+  openGroupFor(location.hash);
+
   bindSlider("sim-inflow", "sim-inflow-r");
   bindSlider("sim-price", "sim-price-r");
   bindSlider("sim-days", "sim-days-r");

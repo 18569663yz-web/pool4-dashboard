@@ -26,6 +26,7 @@
     "html.msg.filterCommunity": "社区",
     "html.msg.filterKey": "重点",
     "html.msg.techSummary": "给技术读者的细节：数据来源与解码方式",
+    "html.band.conclusion": "结论",
     "html.band.evidence": "证据",
     "html.verdict.title": "现在的状态",
     "html.verdict.gapLabel": "点火距离",
@@ -95,6 +96,10 @@
     "html.sources.techSummary": "给技术读者的细节：源码基准与行号对照",
     "html.sources.techBody1": "源码行号对应链上已验证的 <code>CappedBurnHook.sol</code>（1285 行，solc 0.8.30，Blockscout 验证于 2026-09-19；与 Etherscan 侧缓存的副本做规范化 diff 后无内容差异）。完整的机制说明、每一条结论的出处、交叉验算与历史回放对账见仓库里的 <code>NOTES.md</code>。",
     "html.sources.techBody2": "池 ID 可自行验证：<code>keccak256(abi.encode(PoolKey))</code>，池 B = ",
+    "html.official.label": "官方入口",
+    "html.official.docs": "文档",
+    "html.official.explorer": "浏览器",
+    "html.official.stake": "质押",
     "html.footer.readonly": "<b>只读仪表盘。</b>不连接钱包、不签名、不发交易。全部数据来自 <code>eth_call</code> / <code>eth_getBlockByNumber</code> / <code>eth_getTransactionCount</code> / <code>eth_getBalance</code>，通过多个公共 RPC 冗余读取。",
     "html.footer.disclaimer": "独立观察工具，与 IdentityMD / POOL4 项目方无关，未经其审阅。不构成投资建议。"
   },
@@ -124,6 +129,7 @@
     "html.msg.filterCommunity": "Community",
     "html.msg.filterKey": "Key",
     "html.msg.techSummary": "Details for technical readers: where the data comes from and how it is decoded",
+    "html.band.conclusion": "Conclusion",
     "html.band.evidence": "Evidence",
     "html.verdict.title": "Current state",
     "html.verdict.gapLabel": "Ignition distance",
@@ -193,6 +199,10 @@
     "html.sources.techSummary": "Details for technical readers: the source baseline and how line numbers map onto it",
     "html.sources.techBody1": "Source line numbers refer to the <code>CappedBurnHook.sol</code> verified on-chain (1,285 lines, solc 0.8.30, verified by Blockscout on 2026-09-19; a normalised diff against the copy Etherscan caches shows no content differences). The full mechanism write-up, the source of every conclusion, the cross-checks and the historical replay reconciliation are in <code>NOTES.md</code> in the repository.",
     "html.sources.techBody2": "Pool IDs can be verified yourself: <code>keccak256(abi.encode(PoolKey))</code>, pool B = ",
+    "html.official.label": "Official",
+    "html.official.docs": "Docs",
+    "html.official.explorer": "Explorer",
+    "html.official.stake": "Stake",
     "html.footer.readonly": "<b>A read-only dashboard.</b> No wallet connection, no signing, no transactions. All data comes from <code>eth_call</code> / <code>eth_getBlockByNumber</code> / <code>eth_getTransactionCount</code> / <code>eth_getBalance</code>, read redundantly through several public RPCs.",
     "html.footer.disclaimer": "An independent observation tool, unaffiliated with and unreviewed by the IdentityMD / POOL4 team. Not investment advice."
   }

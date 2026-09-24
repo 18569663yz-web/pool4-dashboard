@@ -14,7 +14,10 @@
     "s.165": "触发线 {p0} > 最低值 {p1}，距离会自己缩短",
     "s.177": " <b>注意：触发线的自动下调已经被参数关掉了。</b>",
     "s.140": "这个位置很微妙：多一个 IMD 就会触发销毁，少一个就不会。",
-    "owner.what.imdSetPeer": "改跨链对端：可以把 Base 侧的接收合约改成任意地址，从而改变跨链销毁的落点"
+    "owner.what.imdSetPeer": "改跨链对端：可以把 Base 侧的接收合约改成任意地址，从而改变跨链销毁的落点",
+    "s.404": "<b>这意味着什么：</b>项目方把公告直接写在链上 —— 官网 imd.fun 与 API 文档已经上线，但这里仍是公告的第一现场。",
+    "s.405": "<b>共 {p0} 条可读记录</b>，其中 <b>{p1} 条来自项目方</b>、",
+    "s.406": "{p0} 条来自社区。下面按时间倒序，原文照录，不做解读。"
   },
   "en": {
     "s.341": "book redemption rate, not your yield",
@@ -30,6 +33,9 @@
     "s.165": "Trigger line {p0} > floor {p1}, so the gap closes on its own",
     "s.177": " <b>Note: the automatic trigger-line ratchet has been switched off by a parameter.</b>",
     "s.140": "That is a delicate spot: one more IMD and it burns, one fewer and it does not.",
-    "owner.what.imdSetPeer": "Changes the bridge peer: the receiving contract on Base can be pointed at any address, which changes where bridged tokens are burned."
+    "owner.what.imdSetPeer": "Changes the bridge peer: the receiving contract on Base can be pointed at any address, which changes where bridged tokens are burned.",
+    "s.404": "<b>What this means:</b> the team announces on-chain — imd.fun and its API docs are live, but this is still where announcements land first.",
+    "s.405": "<b>{p0} records can be read in total</b>, <b>{p1} of them from the team</b>,",
+    "s.406": "{p0} from the community. Newest first below, reproduced verbatim, with no interpretation."
   }
 }

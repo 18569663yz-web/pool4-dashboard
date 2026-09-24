@@ -542,8 +542,8 @@
   "s.401": " Each contract is listed separately below — do not read this as “all controllable” or “all safe”.",
   "s.402": "<thead><tr><th>Severity</th><th>Contract</th><th>Function / line</th><th>Consequence</th><th>Now</th></tr></thead><tbody>{p0}</tbody>",
   "s.403": "<div class=\"banner info\"><span class=\"ic\">i</span><div>Message data has not been generated. Run <code>node scripts/fetch-messages.mjs</code> and redeploy.</div></div>",
-  "s.404": "<b>What this means:</b> the team posts no announcements on Twitter, and the official docs still say “Coming soon” — ",
-  "s.405": "<b>on-chain messages are the only channel</b>. {p0} records can be read in total, <b>{p1} of them from the team</b>, ",
+  "s.404": "<b>What this means:</b> the team announces on-chain — imd.fun and its API docs are live, but this is still where announcements land first.",
+  "s.405": "<b>{p0} records can be read in total</b>, <b>{p1} of them from the team</b>,",
   "s.406": "{p0} from the community. Newest first below, reproduced verbatim, with no interpretation.",
   "s.407": " <b>Latest announcement: {p0} days ago.</b>",
   "s.408": " Latest announcement: {p0}.",
@@ -788,5 +788,10 @@
   "awaiting.snapshotAt": "The historical points come from a snapshot generated at {p0}, rebuilt from on-chain Transfer logs; the current value is read straight from the chain every 60 seconds.",
   "stale.hours": "{p0} hours",
   "stale.days": "{p0} days",
-  "stale.banner": "<b>Historical data may be out of date.</b> The charts, the 24h/7d trends and the on-chain message timeline come from pre-generated snapshots; the oldest of them (<code>{p1}</code>) was built {p0} ago. Live on-chain numbers (block, ignition distance, balances) are unaffected."
+  "stale.banner": "<b>Historical data may be out of date.</b> The charts, the 24h/7d trends and the on-chain message timeline come from pre-generated snapshots; the oldest of them (<code>{p1}</code>) was built {p0} ago. Live on-chain numbers (block, ignition distance, balances) are unaffected.",
+  "html.band.conclusion": "Conclusion",
+  "html.official.label": "Official",
+  "html.official.docs": "Docs",
+  "html.official.explorer": "Explorer",
+  "html.official.stake": "Stake"
 }

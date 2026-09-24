@@ -1,4 +1,4 @@
-﻿/* pool4-dashboard — dark, mobile-first, zero dependencies */
+/* pool4-dashboard — dark, mobile-first, zero dependencies */
 
 :root {
   --bg: #0a0b0d;
@@ -54,6 +54,8 @@ header.top .wrap { padding-bottom: 0; }
 .brand { display: flex; align-items: baseline; gap: 10px; flex-wrap: wrap; }
 .brand h1 { font-size: 15px; margin: 0; font-weight: 650; letter-spacing: -0.01em; }
 .brand .sub { color: var(--fg-3); font-size: 12px; }
+/* The brand row aligns on the text baseline and an image has none, so it opts out. */
+.brand .logo { align-self: center; display: block; border-radius: 50%; }
 
 .statusline {
   display: flex; gap: 14px; flex-wrap: wrap;
@@ -306,6 +308,16 @@ details > div { padding-top: 8px; }
 .anchors a:hover { color: var(--fg); border-color: var(--line-2); background: var(--bg-3); text-decoration: none; }
 .anchors a.on { color: #fff; border-color: #2f4a6e; background: #16233a; }
 
+/* Official-entry links share the anchor row, pushed to the right edge. */
+.navrow { display: flex; gap: 10px; flex-wrap: wrap; align-items: center; margin-top: 7px; }
+.navrow .anchors { margin-top: 0; }
+.official { display: flex; gap: 4px; flex-wrap: wrap; margin-left: auto; }
+.official a {
+  font-size: 12px; color: var(--fg-3); padding: 3px 9px; border-radius: 999px;
+  border: 1px solid var(--line); text-decoration: none;
+}
+.official a:hover { color: var(--fg); border-color: var(--line-2); background: var(--bg-2); text-decoration: none; }
+
 /* ---------- section bands ---------- */
 
 .band {
@@ -405,6 +417,27 @@ details.tech > *:not(summary) { padding: 0 14px 13px; }
 details.tech > .card { margin: 12px 14px; padding: 12px; }
 details.tech > .note { margin: 12px 14px; }
 details.tech > .scroll-x { padding: 12px 14px; }
+
+/* ---------- collapsible section groups ---------- *
+ * The five top-level groups reuse the .band look for their summary, so the page still reads
+ * as five labelled sections — they are simply closed by default now, which is what stops it
+ * from being one continuous 16-section scroll. */
+
+details.group > summary.band {
+  margin: 34px 0 0; padding: 6px 0; list-style: none;
+  cursor: pointer; user-select: none;
+}
+details.group > summary.band::-webkit-details-marker { display: none; }
+details.group > summary.band:hover span { color: var(--fg-2); }
+details.group > summary.band::before {
+  content: "▸"; flex: 0 0 auto; font-size: 11px; color: var(--fg-3);
+  transition: transform 0.15s ease;
+}
+details.group[open] > summary.band::before { transform: rotate(90deg); }
+/* The first group is the headline, so it sits closer to the header than the rest. */
+details.group:first-of-type > summary.band { margin-top: 18px; }
+/* Sections already carry their own top margin; trim the doubled gap inside a group. */
+details.group > section:first-of-type { margin-top: 12px; }
 
 /* ---------- verbatim on-chain quotes ---------- */
 

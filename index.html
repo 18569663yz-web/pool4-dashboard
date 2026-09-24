@@ -14,6 +14,7 @@
 <header class="top">
   <div class="wrap">
     <div class="brand">
+      <img class="logo" src="assets/imd-coin.png" alt="" width="34" height="34">
       <h1 id="page-title" data-i18n="meta.title">IMD 烧毁引擎状态</h1>
       <span class="sub" id="page-sub">IdentityMD · Ethereum 主网 · 只读</span>
       <div class="langswitch" id="langswitch" role="group" aria-label="Language">
@@ -21,13 +22,22 @@
         <button type="button" id="lang-en" data-lang="en" class="langbtn">English</button>
       </div>
     </div>
-    <nav class="anchors" id="anchors">
-      <a href="#summary" data-i18n="nav.summary">结论</a>
-      <a href="#evidence" data-i18n="nav.evidence">证据</a>
-      <a href="#mechanism" data-i18n="nav.mechanism">机制</a>
-      <a href="#governance" data-i18n="nav.governance">权限</a>
-      <a href="#data" data-i18n="nav.data">数据</a>
-    </nav>
+    <div class="navrow">
+      <nav class="anchors" id="anchors">
+        <a href="#conclusion" data-i18n="nav.summary">结论</a>
+        <a href="#evidence" data-i18n="nav.evidence">证据</a>
+        <a href="#mechanism" data-i18n="nav.mechanism">机制</a>
+        <a href="#governance" data-i18n="nav.governance">权限</a>
+        <a href="#data" data-i18n="nav.data">数据</a>
+      </nav>
+      <nav class="official" id="official">
+        <a href="https://imd.fun" target="_blank" rel="noopener">imd.fun</a>
+        <a href="https://imd.fun/docs/" target="_blank" rel="noopener" data-i18n="html.official.docs">文档</a>
+        <a href="https://explorer.imd.fun" target="_blank" rel="noopener" data-i18n="html.official.explorer">浏览器</a>
+        <a href="https://imd.fun/token/" target="_blank" rel="noopener">$IMD</a>
+        <a href="https://pool4.imd.fun/stake" target="_blank" rel="noopener" data-i18n="html.official.stake">质押</a>
+      </nav>
+    </div>
     <div class="statusline" id="statusline">
       <span><span class="dot warn" id="dot-rpc"></span><b id="st-rpc">连接中…</b></span>
       <span><span data-i18n="html.status.block">区块</span> <b id="st-block">—</b></span>
@@ -41,6 +51,9 @@
 
   <div id="rpc-banner"></div>
   <div id="stale-banner"></div>
+
+  <details class="group" id="conclusion" open>
+    <summary class="band"><span data-i18n="html.band.conclusion">结论</span></summary>
 
   <!-- ================= 30-SECOND SUMMARY ================= -->
   <section id="summary" class="summary">
@@ -121,34 +134,13 @@
     </div>
   </section>
 
-  <!-- ================= ON-CHAIN MESSAGES ================= -->
-  <section id="messages-section">
-    <h2 data-i18n="html.msg.title">链上留言</h2>
-    <p class="lede" id="messages-lede">
-      <b>这意味着什么：</b>项目方没有 Twitter 公告，官网文档也还没上线——
-      <b>他只在链上发留言</b>。下面这些就是原始记录，按时间倒序，原文照录。
-    </p>
-    <div class="card" id="messages-latest-card" style="display:none">
-      <div class="k tiny muted" style="text-transform:uppercase;letter-spacing:.06em;margin-bottom:8px" data-i18n="html.msg.latestLabel">最新一条 · 项目方</div>
-      <div id="messages-latest"></div>
-    </div>
-    <div class="card" style="margin-top:12px">
-      <div class="presets" id="msg-filters">
-        <button type="button" id="msgf-all" class="preset active"><span data-i18n="html.msg.filterAll">全部</span><small id="msgf-all-n">—</small></button>
-        <button type="button" id="msgf-dev" class="preset"><span data-i18n="html.msg.filterDev">项目方</span><small id="msgf-dev-n">—</small></button>
-        <button type="button" id="msgf-community" class="preset"><span data-i18n="html.msg.filterCommunity">社区</span><small id="msgf-community-n">—</small></button>
-        <button type="button" id="msgf-key" class="preset"><span data-i18n="html.msg.filterKey">重点</span><small id="msgf-key-n">—</small></button>
-      </div>
-      <div id="messages-list" style="margin-top:12px"></div>
-    </div>
-    <details class="tech">
-      <summary data-i18n="html.msg.techSummary">给技术读者的细节：数据来源与解码方式</summary>
-      <div class="note" id="messages-tech" style="margin-top:10px"></div>
-    </details>
-  </section>
+  </details>
 
   <!-- ================= EVIDENCE ================= -->
-  <div class="band" id="evidence"><span data-i18n="html.band.evidence">证据</span></div>
+  <!-- ================= MECHANISM ================= -->
+  <details class="group" id="evidence">
+    <summary class="band"><span data-i18n="html.band.evidence">证据</span></summary>
+
 
   <section id="verdict-section">
     <h2 data-i18n="html.verdict.title">现在的状态</h2>
@@ -192,6 +184,32 @@
       <div class="k tiny muted" style="text-transform:uppercase;letter-spacing:.06em;margin-bottom:8px" data-i18n="html.verdict.flipLabel">状态变更历史（本机记录）</div>
       <div id="fliplog"></div>
     </div>
+  </section>
+
+  <!-- ================= ON-CHAIN MESSAGES ================= -->
+  <section id="messages-section">
+    <h2 data-i18n="html.msg.title">链上留言</h2>
+    <p class="lede" id="messages-lede">
+      <b>这意味着什么：</b>项目方没有 Twitter 公告，官网文档也还没上线——
+      <b>他只在链上发留言</b>。下面这些就是原始记录，按时间倒序，原文照录。
+    </p>
+    <div class="card" id="messages-latest-card" style="display:none">
+      <div class="k tiny muted" style="text-transform:uppercase;letter-spacing:.06em;margin-bottom:8px" data-i18n="html.msg.latestLabel">最新一条 · 项目方</div>
+      <div id="messages-latest"></div>
+    </div>
+    <div class="card" style="margin-top:12px">
+      <div class="presets" id="msg-filters">
+        <button type="button" id="msgf-all" class="preset active"><span data-i18n="html.msg.filterAll">全部</span><small id="msgf-all-n">—</small></button>
+        <button type="button" id="msgf-dev" class="preset"><span data-i18n="html.msg.filterDev">项目方</span><small id="msgf-dev-n">—</small></button>
+        <button type="button" id="msgf-community" class="preset"><span data-i18n="html.msg.filterCommunity">社区</span><small id="msgf-community-n">—</small></button>
+        <button type="button" id="msgf-key" class="preset"><span data-i18n="html.msg.filterKey">重点</span><small id="msgf-key-n">—</small></button>
+      </div>
+      <div id="messages-list" style="margin-top:12px"></div>
+    </div>
+    <details class="tech">
+      <summary data-i18n="html.msg.techSummary">给技术读者的细节：数据来源与解码方式</summary>
+      <div class="note" id="messages-tech" style="margin-top:10px"></div>
+    </details>
   </section>
 
   <section id="timeline-section">
@@ -254,7 +272,12 @@
   </section>
 
   <!-- ================= MECHANISM ================= -->
-  <div class="band" id="mechanism"><span data-i18n="html.band.mechanism">机制</span></div>
+  </details>
+
+  <!-- ================= GOVERNANCE ================= -->
+  <details class="group" id="mechanism">
+    <summary class="band"><span data-i18n="html.band.mechanism">机制</span></summary>
+
 
   <section id="panel-section">
     <h2 data-i18n="html.panel.title">当前数据</h2>
@@ -384,7 +407,12 @@
   </section>
 
   <!-- ================= GOVERNANCE ================= -->
-  <div class="band" id="governance"><span data-i18n="html.band.governance">权限</span></div>
+  </details>
+
+  <!-- ================= DATA ================= -->
+  <details class="group" id="governance">
+    <summary class="band"><span data-i18n="html.band.governance">权限</span></summary>
+
 
   <section id="owner-section">
     <h2 data-i18n="html.owner.title">owner 能做什么</h2>
@@ -417,7 +445,11 @@
   </section>
 
   <!-- ================= DATA ================= -->
-  <div class="band" id="data"><span data-i18n="html.band.data">数据</span></div>
+  </details>
+
+  <details class="group" id="data">
+    <summary class="band"><span data-i18n="html.band.data">数据</span></summary>
+
 
   <section id="sources-section">
     <h2 data-i18n="html.sources.title">数据从哪来</h2>
@@ -438,6 +470,8 @@
       </div>
     </details>
   </section>
+
+  </details>
 
   <footer>
     <p data-i18n-html="html.footer.readonly">
