@@ -15,8 +15,11 @@
     "shots": "node scripts/shoot.mjs --out shots",
     "i18n:merge": "node scripts/merge-i18n.mjs",
     "i18n:check": "node scripts/check-html-i18n.mjs && node scripts/check-terminology.mjs",
-    "test": "node scripts/selftest.mjs && node scripts/check.mjs && node scripts/test-simulate.mjs && node scripts/test-state-machine.mjs && node scripts/test-bridge.mjs && node scripts/check-html-i18n.mjs && node scripts/check-terminology.mjs && node scripts/preview-live.mjs && node scripts/test-render.mjs",
-    "refresh": "node scripts/index-logs.mjs && node scripts/build-data.mjs && node scripts/collect.mjs && node scripts/fetch-bridge-history.mjs"
+    "verify:snapshots": "node scripts/verify-snapshots.mjs",
+    "check:derived": "node scripts/check-derived.mjs",
+    "check:summaries": "node scripts/check-summaries.mjs",
+    "test": "node scripts/selftest.mjs && node scripts/check.mjs && node scripts/check-derived.mjs && node scripts/test-simulate.mjs && node scripts/test-state-machine.mjs && node scripts/test-bridge.mjs && node scripts/check-html-i18n.mjs && node scripts/check-terminology.mjs && node scripts/preview-live.mjs && node scripts/test-render.mjs",
+    "refresh": "node scripts/refresh-snapshots.mjs"
   },
   "engines": { "node": ">=20" }
 }

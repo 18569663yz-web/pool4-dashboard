@@ -173,9 +173,19 @@ node scripts/collect.mjs https://your-own-node.example.com
 | `data/messages.json` | 链上留言全量（项目方 + 社区），含重点标记 | `node scripts/fetch-messages.mjs` |
 | `data/messages.zh.json` | 留言的中文摘要（按区块号索引，`reviewed` 可人工校对；**不是**抓取产物） | 人工 / AI 预生成 |
 | `data/bridge-history.json` | 待桥接队列的 6 个历史采样点（由 Transfer 日志重建，不依赖 archive 节点） | `node scripts/fetch-bridge-history.mjs` |
-| `data/baseline.json` | 最近一次完整快照（用于离线核对） | `node scripts/collect.mjs` |
+| `data/baseline.json` | 最近一次完整快照（用于离线核对，含 `derived` 全量字段） | `node scripts/collect.mjs` |
+| `data/history.json` | 原始事件索引（7 MB，`timeline.json`/`base.json` 的上游） | `node scripts/index-logs.mjs` |
 
 页面在运行时轮询的是**链上实时值**；历史曲线与交易量来自这些预生成文件，并标注了扫描截止区块。
+
+这些文件由 GitHub Actions 每小时刷新一次，**校验通过才会替换**；本地跑同一套流程：
+
+```bash
+node scripts/refresh-snapshots.mjs          # 生成到临时目录 → 校验 → 通过才替换
+node scripts/verify-snapshots.mjs           # 只校验 data/ 里现有的快照
+```
+
+细节（校验规则、失败行为、页面上的过期横幅、CI 端点覆盖）见 `HANDOFF.md` 的「快照刷新」一节。
 
 ---
 
@@ -238,12 +248,16 @@ lib/html-scan.js        扫描 index.html 里没接线的中文（英文模式�
 lib/scan-strings.js     字面量扫描与模板 ${} 参数提取（i18n 迁移工具链的底座）
 scripts/serve.mjs            本地静态服务器
 scripts/shoot.mjs            整页截图（中英各一份，走 DevTools 协议）
+scripts/refresh-snapshots.mjs    刷新五份快照：生成到临时目录 → 校验 → 通过才替换
+scripts/verify-snapshots.mjs     快照校验：形状 + 数值量级 + 「不能倒退」
 scripts/collect.mjs          实时快照 → data/baseline.json
 scripts/index-logs.mjs       分块 eth_getLogs 全历史索引 → data/history.json
 scripts/build-data.mjs       生成前端用的精简数据 → data/timeline.json, data/base.json
 scripts/scan-swaps.mjs       过去 24h 两个池的 Swap 流量 → data/volume.json
 scripts/fetch-messages.mjs   链上留言全量抓取 → data/messages.json
 scripts/fetch-bridge-history.mjs  Transfer 日志重建待桥接队列历史 → data/bridge-history.json
+scripts/check-derived.mjs        derived 字段量级审计（含对已知错误值的反向验证）
+scripts/check-summaries.mjs      留言原文与中文摘要的对照单
 scripts/extract-strings.mjs      扫描中文字面量 → data/strings-todo.json
 scripts/build-i18n-skeleton.mjs  字面量 → 键与参数骨架
 scripts/merge-i18n.mjs           骨架 + data/_*.json 文案源 → locales/*.json
@@ -271,13 +285,16 @@ scripts/preview-live.mjs     合成 LIVE 数据，断言恢复后不残留「已
 ## 验证
 
 ```bash
-node scripts/selftest.mjs            # keccak-256 / ABI 编解码的已知答案自测（36 项）
+node scripts/selftest.mjs            # keccak-256 / ABI 编解码 / 模板参数提取 / 快照新鲜度（46 项）
+node scripts/check.mjs               # id 接线、禁用内容、只读方法、中文字面量归零、文案覆盖（26 项）
+node scripts/check-derived.mjs       # derived 字段的量级审计 + 用已知错误值反向验证检查本身（13 项）
 node scripts/test-simulate.mjs       # 模拟器数学 + 用真实历史 trim 复现链上事件（35 项）
 node scripts/test-state-machine.mjs  # 状态机：熄火 ⇄ 恢复 的翻转条件（18 项）
-node scripts/check.mjs               # id 接线、禁用内容、只读方法、中文字面量归零、文案覆盖（26 项）
 node scripts/test-bridge.mjs         # 第二道门趋势判定 + 「待桥接 ≠ 已销毁」措辞（24 项）
 node scripts/check-html-i18n.mjs     # index.html 中会漏进英文模式的中文（应为 0）
-node scripts/check-terminology.mjs   # 术语表跨语言一致性（--sample 打印中英对照样例）
+node scripts/check-terminology.mjs   # 术语表跨语言一致性（--sample 打印 10 组中英对照）
+node scripts/check-summaries.mjs     # 链上留言原文与中文摘要并列，供人工校对
+node scripts/verify-snapshots.mjs    # 快照形状 + 「不能倒退」（刷新流程的守门人）
 node scripts/preview-live.mjs        # 合成 LIVE 数据，确认恢复后不残留「已停」（16 项）
 node scripts/test-render.mjs         # 无头渲染：每个区块都产出内容 + 切到英文后无中文、无裸键名（116 项）
 node scripts/verify-ownership.mjs    # 三重验证各合约 owner（含 sIMD 的 renounce）
@@ -286,6 +303,8 @@ node scripts/replay.mjs 3            # 归档回放最近 3 次 trim 并与 tota
 node scripts/verify-two-doors.mjs    # 两道门管线的链上取证
 node scripts/simd-ratio-history.mjs  # sIMD 账面比率的成因采样
 ```
+
+`npm test` 跑上面除取证类之外的全部。
 
 交付截图（本机需有 Chrome / Edge）：
 

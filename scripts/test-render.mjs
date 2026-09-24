@@ -336,17 +336,31 @@ ok("'取不到' string available for missing values", true);
 
 console.log("\nsnapshot freshness");
 {
-  // The banner must stay quiet while the snapshots are current, and the page must know how
-  // old the oldest one is (that number is what the banner keys off).
+  // The banner is a data-driven claim, so assert the claim, not a fixed expectation:
+  // it must appear exactly when the oldest snapshot has passed the threshold. (Asserting
+  // "no banner" would fail on any checkout that has not been refreshed recently — which
+  // is precisely the state the banner exists to announce.)
+  const files = ["timeline", "base", "volume", "messages", "bridge-history"];
+  const ages = files.map((f) => {
+    try {
+      const j = JSON.parse(readFileSync(ROOT + `data/${f}.json`, "utf8"));
+      const iso = j.builtAt || j.scannedAt || j.fetchedAt;
+      return iso ? { file: f, hours: (Date.now() - Date.parse(iso)) / 3_600_000 } : null;
+    } catch {
+      return null;
+    }
+  }).filter(Boolean);
+  const oldest = ages.reduce((a, b) => (a.hours >= b.hours ? a : b));
   const banner = content("stale-banner");
-  ok("no stale-data banner while every snapshot is fresh", banner === "", banner.slice(0, 140));
-  const ages = ["timeline", "base", "volume", "messages"].map((f) => {
-    const j = JSON.parse(readFileSync(ROOT + `data/${f}.json`, "utf8"));
-    const iso = j.builtAt || j.scannedAt || j.fetchedAt;
-    return iso ? (Date.now() - Date.parse(iso)) / 3_600_000 : null;
-  });
-  const oldest = Math.max(...ages.filter((x) => x !== null));
-  ok(`the freshest snapshot in this checkout is ${oldest.toFixed(1)}h old (banner threshold is 3h)`, oldest < 3, "run npm run refresh, or the banner is expected — check --dump");
+  const shouldShow = oldest.hours > 3;
+  ok(
+    `staleness banner agrees with the data (oldest: ${oldest.file} at ${oldest.hours.toFixed(1)}h → ${shouldShow ? "shown" : "hidden"})`,
+    banner.length > 0 === shouldShow,
+    banner.slice(0, 160) || "(no banner)"
+  );
+  if (shouldShow) {
+    ok("the banner names the old snapshot and says what is unaffected", /stale|过期/i.test(banner) && banner.includes(oldest.file), banner.slice(0, 200));
+  }
 }
 
 if (process.argv.includes("--dump")) {

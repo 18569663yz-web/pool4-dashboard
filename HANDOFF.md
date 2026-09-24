@@ -68,6 +68,55 @@ node scripts/retag-data-strings.mjs          # lib/contracts.js 的中文 → �
 `_data-copy.json` 数据层、`_proofread.json` 术语校对）。merge 时这些文件的值会**覆盖** locales，
 所以改文案要改这里，不要直接改 `locales/*.json`。
 
+## 快照刷新（GitHub Actions）
+
+页面上所有「历史」——烧毁曲线、24h/7d 趋势、链上留言时间线——都来自 `data/` 下的预生成 JSON。
+它们由 `.github/workflows/refresh-snapshots.yml` 每小时刷新一次（cron `17 * * * *`，避开整点；也支持
+`workflow_dispatch` 手动触发）。
+
+本地跑的是**同一套**流程：
+
+```bash
+node scripts/refresh-snapshots.mjs            # 生成 → 校验 → 通过才替换
+node scripts/refresh-snapshots.mjs --dry-run  # 只生成到临时目录并校验
+node scripts/verify-snapshots.mjs             # 只校验 data/ 里现有的快照
+```
+
+**为什么不是「跑完就写」**：数据源是公共 RPC，它会**给错而不是报错**（NOTES §16 记录了差六个数量级的
+例子）。所以每个产物先写进临时目录，校验通过才替换正式文件：
+
+| 检查 | 拦什么 |
+| --- | --- |
+| JSON 可解析 | 截断的响应 |
+| 关键字段与类型 | 结构被动过、生成器改坏 |
+| 数值量级（`sanityCheckDerived`） | 单位错误、decimals 错误 |
+| **不能倒退**：事件数不减少、`headBlock`/`scannedTo`/`toBlock` 不回退、留言数不掉 20% 以上 | 抓取被截断（实践中最常见的失败） |
+
+任一步失败 → `data/` 一个字节都不动、退出非零、workflow 不 commit（GitHub 会通知仓库 owner）。
+生成器失败会自动**重试一次**（公共端点偶尔断几秒）。
+
+**页面上的过期提示**：任一快照超过 3 小时未更新，页面顶部出现黄色横幅（`stale.banner`），写明最旧的
+是哪一份、多久以前。链上实时数字不受影响。
+
+**CI 的端点**：设仓库变量 `POOL4_RPC_URLS`（逗号分隔）即可覆盖所有脚本的端点优先级，不改变默认值
+（本机不设就用内置列表）。`lib/evm.js` 的 `rpcEndpoints()` 负责合并。
+
+**若本机 node 连不上 Blockscout**（`base.blockscout.com` / `eth.blockscout.com` 在部分网络下对 node
+直连超时，而同一 URL 用 PowerShell 能打开）：`base.json` 与 `messages.json` 会因此刷不动，其余快照照常
+更新。三种处理方式：
+
+```bash
+POOL4_SKIP_BASE=1 node scripts/refresh-snapshots.mjs --skip messages   # 明确跳过，其余照刷
+HTTPS_PROXY=http://127.0.0.1:7890 NODE_USE_ENV_PROXY=1 node scripts/refresh-snapshots.mjs   # Node 24 走代理
+node scripts/refresh-snapshots.mjs                                    # 交给 CI（GitHub runner 可达）
+```
+
+被跳过的快照不会被动过，页面上的过期横幅会开始计时 —— 这是设计好的降级路径，不是静默失败。
+
+**`data/history.json`（7 MB 原始事件索引）**：它进仓库是为了让 CI 的第一次运行是增量（约 2000 区块）
+而不是全量重扫（16 万区块）。workflow 用 `actions/cache` 在运行之间传递它的更新，**不**把它提交进 git
+—— 否则仓库每小时长 7 MB。
+
 ## 已修正的错误（不要再犯）
 
 1. **sIMD 已 renounce ownership** —— 区块 26014063，tx `0x519fdbdd…`。
@@ -87,20 +136,37 @@ node scripts/retag-data-strings.mjs          # lib/contracts.js 的中文 → �
    并有 `isBalanced()` 在 `apply-i18n.mjs` 里做安全阀。
 10. **`process.exit()` 会截断未 flush 的 stdout**（Windows 管道下尤其明显）：测试全绿却只打印一行。
     测试脚本在 exit 前 `await process.stdout.write("")`。
+11. **`daysOfBuffer` 把秒当成了天**：算出「秒数」后又**乘** 86400，而应该**除以** 86400。
+    结果是一个只够 304 秒的缓冲被写成 26,270,609 天（差 86400² ≈ 7.46×10⁹ 倍）。
+    量纲表现在在 NOTES §17，`sanityCheckDerived()` 会拦下 > 365 天的值。
+12. **`ethInPoolUsd` 把 ETH 又当成 IMD 定价了一次**：`ethInPool` 本来就是 ETH，却又过一次
+    `valueInEth()`（IMD→ETH），于是 $57,039 被写成 $115.75（差 ≈ 493 倍 = 1/ethPerImd）。
+    量级检查现在要求它与 `ethInPool × ethUsd` 相差不超过 10 倍。
+13. **量级断言本身会形同虚设**：`sanityCheckDerived()` 第一版的 `num()` 只认 bigint/number，
+    而快照里的数值全是 JSON 字符串 → 每条检查都静默跳过，检查"全绿"。自测（用已知错误值反向验证）
+    当场抓出来了。**断言必须被证明会失败**。
+14. **位置参数会被新选项污染**：`scan-swaps.mjs` 用 `process.argv[2]` 当小时数，
+    加上 `--out-dir <tmp>` 后它读到的是 `--out-dir`，`Number("--out-dir")` = NaN，
+    于是「扫描 0 笔交易」被当成成功结果写出。选项现在先被剥离。
 
 ## 测试
 
 ```bash
-node scripts/selftest.mjs            # 36  keccak / ABI 已知答案 + 模板参数提取
+node scripts/selftest.mjs            # 46  keccak / ABI / 模板参数提取 / 快照新鲜度
 node scripts/check.mjs               # 26  id 接线 / 禁用内容 / 只读方法 / 中文字面量归零 / 文案覆盖
+node scripts/check-derived.mjs       # 13  derived 量级审计 + 已知错误值反向验证 + 未使用字段
 node scripts/test-simulate.mjs       # 35  模拟器 + 真实历史 trim 端到端复现
 node scripts/test-state-machine.mjs  # 18  状态判定与 capFloor 变更翻转
 node scripts/test-bridge.mjs         # 24  第二道门趋势判定 + 文案不得把「待桥接」说成「已销毁」
 node scripts/check-html-i18n.mjs     # --  index.html 里会漏进英文模式的中文（应为 0）
 node scripts/check-terminology.mjs   # --  术语表跨语言一致性（15 组在用术语，0 不匹配）
+node scripts/check-summaries.mjs     # --  留言原文与中文摘要并列，供人工校对
+node scripts/verify-snapshots.mjs    # --  快照形状 + 不能倒退（刷新流程的守门人）
 node scripts/preview-live.mjs        # 16  合成 LIVE 数据，断言恢复后不残留「已停」
 node scripts/test-render.mjs         # 116 无头渲染（DOM stub + 真实网络 + 中英切换后零中文/零裸键名）
 ```
+
+`npm test` 依次跑上面全部（除取证类与 `verify-snapshots`，后者需要一份待校验的产物）。
 
 截图（交付用，需要本机 Chrome/Edge）：
 

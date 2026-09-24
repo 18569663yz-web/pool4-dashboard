@@ -9,6 +9,7 @@ import { outPath } from "../lib/snapshot-out.js";
 
 const DATA = new URL("../data/", import.meta.url);
 mkdirSync(DATA, { recursive: true });
+const SKIP_BASE = process.argv.includes("--skip-base");
 const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
 const hx = (n) => "0x" + BigInt(n).toString(16);
 
@@ -108,7 +109,17 @@ console.log(`  wrote data/timeline.json (${(JSON.stringify(timeline).length / 10
 
 /* ------------------------------------------------------------------ *
  * 2. base side: the second door
+ *
+ * `--skip-base` skips this section entirely. base.blockscout.com is unreachable from
+ * some networks (it times out under node while the same URL answers from PowerShell on
+ * the same machine), and a refresh that publishes a fresh timeline.json is still worth
+ * more than no refresh at all. The previously built base.json stays in place, and the
+ * page raises its staleness banner if the gap passes three hours.
+ *
+ * The refresh job does NOT skip this by default — on GitHub's runners the endpoint is
+ * reachable, and a gap there should be visible rather than silently tolerated.
  * ------------------------------------------------------------------ */
+if (!SKIP_BASE) {
 console.log("\nbuilding base.json…");
 const bs = async (address, topic0, extra = "") => {
   const url = `https://base.blockscout.com/api?module=logs&action=getLogs&fromBlock=1&toBlock=latest&address=${address}${topic0 ? "&topic0=" + topic0 : ""}${extra}`;
@@ -212,12 +223,15 @@ console.log(`  wrote data/base.json (${(JSON.stringify(baseJson).length / 1024).
 const callers = new Map();
 for (const b of baseJson.burns) callers.set(b.caller, (callers.get(b.caller) || 0) + 1);
 console.log(`  burn callers: ${[...callers.entries()].map(([a, n]) => `${a}×${n}`).join(", ")}`);
+} // end of the Base section (see --skip-base above)
 
 console.log("\nsummary:");
 console.log(`  last L1 trim       block ${timeline.last.Trimmed}  ${new Date(ts[timeline.last.Trimmed] * 1000).toISOString()}`);
+if (!SKIP_BASE) {
 const lastBridge = bridgeBlocks[bridgeBlocks.length - 1];
 const lastBurn = burnBlocks[burnBlocks.length - 1];
 console.log(`  last L1 bridge     block ${lastBridge}  ${new Date(l1Ts[lastBridge] * 1000).toISOString()}`);
 console.log(`  last Base burn     block ${lastBurn}  ${new Date(baseTs[lastBurn] * 1000).toISOString()}`);
 console.log(`  Base FP totalSupply ${fmtUnits(BigInt(baseState.tokenTotalSupply), fpDecimals, 4)}`);
 console.log(`  adapter FP balance  ${fmtUnits(BigInt(baseState.adapterBalance), fpDecimals, 4)}`);
+} // end of the Base summary

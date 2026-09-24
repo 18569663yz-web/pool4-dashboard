@@ -31,14 +31,33 @@ const ONLY = argOf("--only", "")
 const DRY = process.argv.includes("--dry-run");
 
 /** The order matters: build-data reads what index-logs produced. */
+const SKIP_BASE = process.env.POOL4_SKIP_BASE === "1";
 const STEPS = [
   { id: "index", script: "index-logs.mjs", outputs: ["history.json"] },
-  { id: "timeline", script: "build-data.mjs", outputs: ["timeline.json", "base.json"] },
+  {
+    id: "timeline",
+    script: "build-data.mjs",
+    args: SKIP_BASE ? ["--skip-base"] : [],
+    outputs: ["timeline.json"],
+    optionalOutputs: ["base.json"],
+  },
   { id: "volume", script: "scan-swaps.mjs", args: ["24"], outputs: ["volume.json"] },
   { id: "messages", script: "fetch-messages.mjs", outputs: ["messages.json"] },
   { id: "bridge", script: "fetch-bridge-history.mjs", outputs: ["bridge-history.json"] },
   { id: "baseline", script: "collect.mjs", outputs: ["baseline.json"] },
 ];
+
+/**
+ * --skip <ids|outputs> omits steps, for networks where one upstream is unreachable.
+ *
+ * Used deliberately and visibly: skipping produces no file, so verify-snapshots leaves the
+ * published copy alone and the page's staleness banner starts counting. The refresh job
+ * itself never skips anything — a gap in CI should surface, not be tolerated.
+ */
+const SKIP = argOf("--skip", "")
+  .split(",")
+  .map((s) => s.trim())
+  .filter(Boolean);
 
 const staging = mkdtempSync(join(tmpdir(), "pool4-refresh-"));
 console.log(`staging: ${staging}\n`);
@@ -50,6 +69,28 @@ const run = (script, args) =>
     child.on("error", () => resolve(1));
   });
 
+const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
+
+/**
+ * One retry on failure. The generators talk to public RPC endpoints and to Blockscout,
+ * both of which drop connections for a few seconds now and then — a transient timeout
+ * should not cost an hour of freshness (or wake the repository owner with a red run).
+ * A real outage still fails: two attempts, then the job stops.
+ */
+async function runStep(step) {
+  const args = ["--out-dir", staging, ...(step.args || [])];
+  const attempts = process.argv.includes("--no-retry") ? 1 : 2;
+  for (let attempt = 1; attempt <= attempts; attempt++) {
+    const code = await run(step.script, args);
+    if (code === 0) return 0;
+    if (attempt < attempts) {
+      console.log(`  ${step.script} failed (attempt ${attempt}/${attempts}) — retrying in 20s`);
+      await sleep(20_000);
+    }
+  }
+  return 1;
+}
+
 const fail = (message) => {
   console.error(`\n✗ ${message}`);
   console.error(`  data/ was not touched. Staging kept at ${staging}`);
@@ -58,11 +99,18 @@ const fail = (message) => {
 
 for (const step of STEPS) {
   if (ONLY.length && !ONLY.some((o) => step.id === o || step.outputs.some((f) => f.startsWith(o)))) continue;
+  if (SKIP.some((s) => step.id === s || step.outputs.some((f) => f.startsWith(s)))) {
+    console.log(`\n─── ${step.id}: skipped (--skip)`);
+    continue;
+  }
   console.log(`\n─── ${step.id} (${step.script}) ${"─".repeat(Math.max(0, 40 - step.id.length))}`);
-  const code = await run(step.script, ["--out-dir", staging, ...(step.args || [])]);
+  const code = await runStep(step);
   if (code !== 0) fail(`${step.script} exited with code ${code}`);
   const missing = step.outputs.filter((f) => !existsSync(join(staging, f)));
   if (missing.length) fail(`${step.script} did not produce: ${missing.join(", ")}`);
+  for (const f of step.optionalOutputs || []) {
+    if (!existsSync(join(staging, f))) console.log(`  note: ${f} was not produced this run — the published copy stays in place`);
+  }
 }
 
 console.log(`\n─── verify ${"─".repeat(34)}`);
