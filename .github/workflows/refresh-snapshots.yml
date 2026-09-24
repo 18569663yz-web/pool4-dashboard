@@ -13,7 +13,14 @@ name: refresh snapshots
 on:
   schedule:
     # Deliberately not on the hour: every cron-driven project on GitHub fires at :00.
-    - cron: "17 * * * *"
+    #
+    # Every 2 hours rather than every hour. Cloudflare Pages' free plan allows 500 builds a
+    # month and counts one for every push to the connected repository, so the hourly cadence
+    # this job was written for (~730 a month) would stop deploying partway through the month
+    # with no obvious cause. At 12 runs a day (360 a month) the snapshots stay inside the free
+    # allowance, and the page's 3-hour staleness banner still appears only when a refresh
+    # actually fails — not as a side effect of the schedule.
+    - cron: "17 */2 * * *"
   workflow_dispatch: # manual trigger, for testing and for the first run
 
 permissions:
