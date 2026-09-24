@@ -317,7 +317,7 @@ node scripts/test-log-scan.mjs       # 19  L1 日志分窗扫描：重试、失�
 node scripts/test-promote.mjs        # 16  发布清单（optionalOutputs 必须与 outputs 一起发布）
 node scripts/verify-snapshots.mjs    # --  快照形状 + 不能倒退（刷新流程的守门人）
 node scripts/preview-live.mjs        # 16  合成 LIVE 数据，断言恢复后不残留「已停」
-node scripts/test-render.mjs         # 126 无头渲染（DOM stub + 真实网络 + 中英切换后零中文/零裸键名）
+node scripts/test-render.mjs         # 128 无头渲染（DOM stub + 真实网络 + 中英切换后零中文/零裸键名）
 ```
 
 `npm test` 依次跑上面全部（除取证类与 `verify-snapshots`，后者需要一份待校验的产物）。

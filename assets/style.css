@@ -467,9 +467,25 @@ details > div { padding-top: 8px; }
 .act-head .muted { text-transform: none; letter-spacing: 0; font-weight: 400; }
 .actbars { display: flex; align-items: flex-end; gap: 2px; height: 54px; }
 .actbars i {
+  position: relative;
   flex: 1 1 0; min-width: 2px; min-height: 2px;
   background: var(--dead); opacity: .75; border-radius: 2px 2px 0 0;
 }
+/* Hover readout: the exact block and amount behind one bar. Pointer-only by nature, so it is
+ * an enhancement — the strip still reads as a shape without it. */
+.actbars i::after {
+  content: attr(data-tip);
+  position: absolute; bottom: calc(100% + 7px); left: 50%; transform: translateX(-50%);
+  background: var(--bg-1); border: 1px solid var(--line-2); border-radius: 7px;
+  padding: 5px 9px; font-size: 11px; font-family: var(--mono); color: var(--fg-2);
+  white-space: nowrap; box-shadow: var(--shadow-pop);
+  opacity: 0; pointer-events: none; transition: opacity .12s ease; z-index: 20;
+}
+/* The end bars would otherwise push their tooltip past the container edge. */
+.actbars i:first-child::after { left: 0; transform: none; }
+.actbars i:last-child::after { left: auto; right: 0; transform: none; }
+.actbars i:hover { opacity: 1; }
+.actbars i:hover::after { opacity: 1; }
 
 /* "show all N messages" — the message list is 70+ entries long */
 .msgs-more { margin-top: 12px; }

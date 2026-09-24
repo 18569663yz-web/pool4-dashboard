@@ -111,6 +111,21 @@ const ago = (tsSec) => {
 const iso = (tsSec) => new Date(tsSec * 1000).toISOString().replace("T", " ").slice(0, 19) + " UTC";
 const blocksToDays = (n) => (n * 12) / 86400;
 
+/**
+ * Is the pool sitting on the trigger line with nothing burnable yet?
+ *
+ * Two different readings mean the same thing to a reader: exactly on the line (excess 0), and
+ * a few wei over it — pendingTrim() is floor(L * excess / held), so a pool just over the line
+ * reports a positive value that still prints as "0.00". The headline, the state badge and the
+ * verdict answer all have to agree on which one this is, or the page contradicts itself: the
+ * badge said "工作中" while the headline said "贴着触发线".
+ */
+function onTheLine(d) {
+  if (d.gapRaw !== 0n) return false;
+  if (d.pendingTrim === 0n) return true;
+  return fmt18(d.pendingTrim, 2) === "0.00";
+}
+
 /* ------------------------------------------------------------------ *
  * boot
  * ------------------------------------------------------------------ */
@@ -586,8 +601,18 @@ function renderSummaryVisual() {
   if (recent.length) {
     const vals = recent.map((x) => Number(x.burned) / 1e18);
     const maxV = Math.max(...vals, 1e-9);
+    // Each bar carries its own reading. Without it the strip says "the engine has been busy"
+    // and nothing else — the reader asked for the actual amounts.
     const bars = recent
-      .map((x, i) => `<i style="height:${Math.max(3, (Math.sqrt(vals[i]) / Math.sqrt(maxV)) * 100).toFixed(1)}%"></i>`)
+      .map((x, i) => {
+        const h = Math.max(3, (Math.sqrt(vals[i]) / Math.sqrt(maxV)) * 100).toFixed(1);
+        const tip =
+          tr("s.524", { p0: x.b.toLocaleString() }) +
+          " · " +
+          tr("s.525", { p0: fmt18(BigInt(x.burned), 2) }) +
+          (x.t ? " · " + ago(x.t) : "");
+        return `<i style="height:${h}%" data-tip="${esc(tip)}"></i>`;
+      })
       .join("");
     const lastTs = recent[recent.length - 1].t;
     activity =
@@ -618,12 +643,16 @@ function renderSummary() {
   // The interesting case is gap == 0: `held == cap` means _applyCap() does nothing
   // this block (L991 excess == 0), yet ANY sell pushes held over the cap and fires
   // immediately. Calling that "stopped" would be wrong.
-  const atLine = d.gapRaw === 0n && d.pendingTrim === 0n;
+  //
+  // `held > cap` is not enough to promise something to burn — see onTheLine(). Below the
+  // display threshold the headline says where the pool is instead of naming a zero amount.
+  const atLine = onTheLine(d);
+  const pendingTxt = d.pendingTrim > 0n ? fmt18(d.pendingTrim, 2) : "";
   let headline;
   let title;
-  if (d.state === "LIVE") {
-    headline = tr("hero.live", { amount: fmt18(d.pendingTrim, 2) });
-  } else if (atLine) {
+  if (d.state === "LIVE" && !atLine && pendingTxt) {
+    headline = tr("hero.live", { amount: pendingTxt });
+  } else if (atLine || d.state === "LIVE") {
     headline = tr("hero.atLine");
   } else if (d.state === "CRITICAL") {
     headline = tr("hero.critical");
@@ -933,17 +962,19 @@ function renderVerdict() {
   const trimAge = lastTrim && state.timeline.blockTime[lastTrim] ? ago(state.timeline.blockTime[lastTrim]) : null;
   const sinceBlocks = lastTrim ? s.blockNumber - lastTrim : null;
 
-  const atLineNow = d.gapRaw === 0n && d.pendingTrim === 0n;
-  const titles = {
-    DORMANT: tr("s.122"),
-    CRITICAL: atLineNow ? tr("s.123") : tr("s.124"),
-    LIVE: tr("s.125"),
-  };
-  $("v-title").textContent = titles[d.state] || tr("s.126");
+  const atLineNow = onTheLine(d);
+  // onTheLine() outranks the raw state everywhere below: a pool that is over the line by a few
+  // wei is described as sitting on it, and the badge has to say the same thing the headline does.
+  $("v-title").textContent =
+    (atLineNow
+      ? tr("s.123")
+      : { DORMANT: tr("s.122"), CRITICAL: tr("s.124"), LIVE: tr("s.125") }[d.state]) || tr("s.126");
   const badge = $("v-state");
-  badge.className = "badge-state " + (atLineNow && d.state === "CRITICAL" ? "live" : d.state.toLowerCase());
+  badge.className = "badge-state " + (atLineNow && d.state !== "DORMANT" ? "live" : d.state.toLowerCase());
   badge.textContent =
-    { DORMANT: tr("s.127"), CRITICAL: atLineNow ? tr("s.128") : tr("s.129"), LIVE: tr("s.130") }[d.state] || d.state;
+    (atLineNow
+      ? tr("s.128")
+      : { DORMANT: tr("s.127"), CRITICAL: tr("s.129"), LIVE: tr("s.130") }[d.state]) || d.state;
   $("verdict").className = "verdict " + (d.state === "LIVE" || atLineNow ? "live" : d.state === "CRITICAL" ? "critical" : "");
 
   const held = v["hook.tokensInPool"];
@@ -959,7 +990,7 @@ function renderVerdict() {
       (trimAge ? tr("s.134", { p0: trimAge }) : "") +
       tr("s.135", { p0: fmt18(d.floor, 0) }) +
       tr("s.136", { p0: fmt18(cap, 0) });
-  } else if (d.state === "LIVE") {
+  } else if (d.state === "LIVE" && !atLineNow) {
     answer =
       tr("s.137", { p0: fmt18(held, 2), p1: fmt18(cap, 2) }) +
       tr("s.138", { p0: fmt18(pending, 4) });
@@ -989,16 +1020,21 @@ function renderVerdict() {
   }
 
   $("v-gap").textContent = d.gapRaw === 0n ? "0" : fmt18(d.gapRaw, 4);
+  // "超出触发线 0.0000 IMD —— 已经具备触发条件" is technically true and completely useless;
+  // below the display threshold say what the position actually means.
   $("v-gap-alt").innerHTML =
     d.gapRaw === 0n
-      ? tr("s.150", { p0: fmt18(d.pendingTrim, 4) })
+      ? atLineNow
+        ? tr("s.516")
+        : tr("s.150", { p0: fmt18(d.pendingTrim, 4) })
       : `≈ ${fmt18(d.gapEth, 6)} ETH · ≈ $${fmt18(d.gapUsd, 2)}` +
         (d.ethUsd === 0n ? tr("s.151") : `（ETH/USD $${fmt18(d.ethUsd, 2)}）`);
 
   $("v-held").textContent = fmt18(held, 4);
   $("v-cap").textContent = fmt18(cap, 2);
   $("v-floor").textContent = fmt18(d.floor, 2);
-  $("v-pending").innerHTML = pending === 0n ? tr("s.152") : fmt18(pending, 4);
+  const pendingShown = fmt18(pending, 4);
+  $("v-pending").innerHTML = pending === 0n || pendingShown === "0.0000" ? tr("s.152") : pendingShown;
   $("v-cap-label").textContent = tr("s.153", { p0: fmt18(cap, 0) });
 
   const pct = cap > 0n ? Number((held * 10000n) / cap) / 100 : 0;

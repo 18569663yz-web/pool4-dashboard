@@ -66,5 +66,13 @@
   "msg.showLess": {
     "zh": "只显示最新几条",
     "en": "Show only the newest"
+  },
+  "s.524": {
+    "zh": "区块 {p0}",
+    "en": "Block {p0}"
+  },
+  "s.525": {
+    "zh": "烧毁 {p0} IMD",
+    "en": "Burned {p0} IMD"
   }
 }

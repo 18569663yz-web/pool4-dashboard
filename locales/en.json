@@ -291,7 +291,7 @@
   "s.149": "<b>What this means:</b> destruction is happening, and staking rewards have a source.",
   "s.150": "{p0} IMD above the trigger line — the trigger condition is met",
   "s.151": " <span class=\"err\">(ETH/USD unavailable, so the dollar value is not shown)</span>",
-  "s.152": "0 <span class=\"tiny muted\">no excess</span>",
+  "s.152": "0 <span class=\"tiny muted\">nothing above the line — the pool is either under it or exactly on it</span>",
   "s.153": "Burn trigger line {p0}",
   "s.154": "Stopped",
   "s.155": "Pool IMD is below the trigger line, and the line has already fallen to its floor",
@@ -829,5 +829,7 @@
   "html.what.flow3": "Cross the line and the excess is pulled out",
   "html.what.flow4": "<span class=\"burn\">85% burned for good</span><span class=\"reward\">15% to stakers</span>",
   "html.what.flowNote": "<b>No sellers, no burns.</b> And after the trim, someone still has to pay the gas to call burn on Base — neither of the two doors opens on its own.",
-  "html.footer.author": "Maintained by <a href=\"https://x.com/Despite_zmw\" target=\"_blank\" rel=\"noopener\">@Despite_zmw</a> — corrections and suggestions are welcome on X."
+  "html.footer.author": "Maintained by <a href=\"https://x.com/Despite_zmw\" target=\"_blank\" rel=\"noopener\">@Despite_zmw</a> — corrections and suggestions are welcome on X.",
+  "s.524": "Block {p0}",
+  "s.525": "Burned {p0} IMD"
 }

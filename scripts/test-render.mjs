@@ -240,6 +240,15 @@ ok("the gauge names both ends of the scale", /触发线的下限/.test(visual) &
 const actBars = (visual.match(/<i style="height:/g) || []).length;
 ok("summary draws the burn-activity strip", /class="actbars"/.test(visual) && actBars >= 5, `${actBars} bars`);
 ok("the activity strip says when the last burn was", /最近一次烧毁/.test(visual));
+// Each bar has to carry its own number: the strip is a shape, and "busy" is not a reading.
+ok(
+  "every activity bar carries its own block and amount",
+  (visual.match(/data-tip="/g) || []).length === actBars && /data-tip="区块 [\d,]+ · 烧毁 [\d,.]+ IMD/.test(visual),
+  `${(visual.match(/data-tip="/g) || []).length} of ${actBars} bars`
+);
+// `held > cap` can be true while floor(L * excess / held) still rounds to zero. Saying
+// "0.00 IMD waiting to be burned" in that state reads as a broken page.
+ok("the headline never claims zero is waiting to be burned", !/0\.00 IMD/.test(text("sum-headline")), text("sum-headline"));
 
 // State-independent assertions: read what the page actually says, then check it is
 // self-consistent. Hard-coding "已停" would break the moment the engine re-ignites.
