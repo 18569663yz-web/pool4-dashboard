@@ -96,6 +96,23 @@ function connect(wsUrl) {
 
 const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
 
+/**
+ * Screenshot with one retry. A tall page sliced into many captures occasionally makes a
+ * single Page.captureScreenshot fail (large base64 payloads over the websocket); retrying
+ * is cheaper than losing the whole run over one slice.
+ */
+async function capture(cdp, params) {
+  for (let attempt = 1; attempt <= 2; attempt++) {
+    try {
+      return await cdp.send("Page.captureScreenshot", params);
+    } catch (e) {
+      if (attempt === 2) throw e;
+      console.log(`  capture failed (${String(e.message).slice(0, 60)}) — retrying`);
+      await sleep(1500);
+    }
+  }
+}
+
 const chrome = spawn(
   browser,
   [
@@ -141,7 +158,7 @@ try {
     for (let i = 0; i < slices; i++) {
       const y = i * SLICE;
       const height = Math.min(SLICE, h - y);
-      const shot = await cdp.send("Page.captureScreenshot", {
+      const shot = await capture(cdp, {
         format: "png",
         captureBeyondViewport: true,
         clip: { x: 0, y, width: w, height, scale: 1 },
@@ -156,7 +173,7 @@ try {
     const TEXTURE_LIMIT = 16000;
     if (h > TEXTURE_LIMIT) {
       const scale = TEXTURE_LIMIT / h;
-      const shot = await cdp.send("Page.captureScreenshot", {
+      const shot = await capture(cdp, {
         format: "png",
         captureBeyondViewport: true,
         clip: { x: 0, y: 0, width: w, height: h, scale },
