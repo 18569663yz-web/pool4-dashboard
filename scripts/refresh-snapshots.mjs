@@ -13,10 +13,11 @@
 // occasionally answer with nonsense instead of an error (NOTES.md §16). Writing straight
 // to data/ would mean one bad hour quietly ships an empty timeline.
 import { spawn } from "node:child_process";
-import { copyFileSync, renameSync, mkdtempSync, rmSync, existsSync, readFileSync } from "node:fs";
+import { mkdtempSync, rmSync, existsSync } from "node:fs";
 import { fileURLToPath } from "node:url";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
+import { promoteSnapshots } from "../lib/snapshot-promote.js";
 
 const ROOT = fileURLToPath(new URL("..", import.meta.url));
 const argOf = (name, fallback) => {
@@ -128,29 +129,11 @@ if (DRY) {
 }
 
 console.log(`\n─── promote ${"─".repeat(33)}`);
-let promoted = 0;
-let unchanged = 0;
-for (const step of STEPS) {
-  for (const file of step.outputs) {
-    const from = join(staging, file);
-    const to = join(ROOT, "data", file);
-    if (!existsSync(from)) continue;
-    // Write next to the target, then rename: a reader never sees a half-written file.
-    const tmp = to + ".incoming";
-    copyFileSync(from, tmp);
-    // Byte comparison is the "no empty commit" guard: the workflow only commits when
-    // something actually changed, and this is where that is decided.
-    if (existsSync(to) && Buffer.compare(readFileSync(to), readFileSync(tmp)) === 0) {
-      rmSync(tmp, { force: true });
-      unchanged++;
-      console.log(`  = ${file} (unchanged)`);
-      continue;
-    }
-    renameSync(tmp, to);
-    promoted++;
-    console.log(`  ✓ ${file}`);
-  }
-}
+/* outputs AND optionalOutputs — see lib/snapshot-promote.js for what the run of green builds
+ * cost while this was `step.outputs` alone. */
+const { updated, unchanged } = promoteSnapshots({ steps: STEPS, staging, dataDir: join(ROOT, "data") });
+for (const file of unchanged) console.log(`  = ${file} (unchanged)`);
+for (const file of updated) console.log(`  ✓ ${file}`);
 
 rmSync(staging, { recursive: true, force: true });
-console.log(`\n${promoted} updated, ${unchanged} unchanged`);
+console.log(`\n${updated.length} updated, ${unchanged.length} unchanged`);

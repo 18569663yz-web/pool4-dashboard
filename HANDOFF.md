@@ -244,6 +244,16 @@ head block 26046301 from https://gateway.tenderly.co/public/mainnet
     「the failure reaches the caller」正是旧行为会挂掉的那条。
     同一段还把 `l1.blockNumber()`（第一个答复的端点）换成 `highestBlockNumber()`，避免滞后端点
     截短扫描范围。**凡是「拉取失败」和「数据真的变少了」无法区分的地方，都要按这个模式处理。**
+18. **`optionalOutputs` 只说明「可以缺」，不说明「不要发布」—— 但 promote 循环只遍历了 `outputs`。**
+    `refresh-snapshots.mjs` 的发布阶段写的是 `for (const file of step.outputs)`，而 `base.json` 在
+    `optionalOutputs` 里（因为 `--skip-base` 时它不产出）。后果：**CI 每轮都生成了新鲜的
+    `base.json`、`verify` 也校验了它，然后连同 staging 目录一起删掉** —— `data/base.json` 永远停在
+    本地最后一次手动生成的那份（当天凌晨 03:36）。**整件事没有任何东西失败**：job 全绿、commit
+    干净、`base.json` 只是不再更新，唯一迹象是页面的过期横幅。
+    识别方法：CI 成功后 `git show --stat` 里没有 `base.json`，而它带 `builtAt`、本该每轮都变。
+    修法：发布逻辑提取到 `lib/snapshot-promote.js`，遍历 `[...outputs, ...optionalOutputs]`；
+    `scripts/test-promote.mjs`（16 条）里有一条直接断言「旧代码用的 outputs-only 清单会漏掉
+    base.json」。**与 #15、#17 同类：某个步骤在沉默中降级，而不是报错。**
 
 ## 测试
 
@@ -261,6 +271,7 @@ node scripts/test-build-data.mjs     # 21  build-data 全流程离线跑通（fi
 node scripts/test-staged-input.mjs   #  8  下游生成器读本轮 staging 产物，而不是仓库里的旧索引
 node scripts/test-log-index.mjs      # 31  事件索引的增量边界（carry-over / scanTo / 链头异常）
 node scripts/test-log-scan.mjs       # 19  L1 日志分窗扫描：重试、失败必上报、绝不静默丢窗口
+node scripts/test-promote.mjs        # 16  发布清单（optionalOutputs 必须与 outputs 一起发布）
 node scripts/verify-snapshots.mjs    # --  快照形状 + 不能倒退（刷新流程的守门人）
 node scripts/preview-live.mjs        # 16  合成 LIVE 数据，断言恢复后不残留「已停」
 node scripts/test-render.mjs         # 116 无头渲染（DOM stub + 真实网络 + 中英切换后零中文/零裸键名）
