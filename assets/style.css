@@ -367,6 +367,141 @@ details > div { padding-top: 8px; }
   .kv dd { text-align: left; margin-bottom: 7px; }
 }
 
+/* ---------- 30-second summary ---------- */
+
+.summary {
+  margin-top: 20px; padding: 20px;
+  border: 1px solid var(--line-2); border-radius: 12px;
+  background: linear-gradient(165deg, var(--dead-tint) 0%, var(--bg-1) 60%);
+  box-shadow: var(--shadow-card);
+}
+.summary.calm { background: linear-gradient(165deg, var(--live-tint) 0%, var(--bg-1) 60%); }
+
+.sum-headline {
+  font-size: clamp(20px, 5vw, 30px); font-weight: 700; letter-spacing: -0.025em;
+  margin: 0 0 16px; line-height: 1.25; text-transform: none; color: var(--fg);
+}
+.sum-headline b { color: var(--dead); }
+/* `calm` lands on the .summary section, not on the headline: the old `.sum-headline.calm b`
+ * selector could never match anything, so a recovered engine still shouted its headline in
+ * the stopped-red. */
+.summary.calm .sum-headline b { color: var(--live); }
+
+.sum-grid { display: grid; gap: 12px; grid-template-columns: repeat(auto-fit, minmax(250px, 1fr)); }
+.sum-block {
+  background: var(--tint); border: 1px solid var(--line);
+  border-radius: 9px; padding: 13px 14px;
+}
+.sum-block h3 {
+  font-size: 12px; text-transform: uppercase; letter-spacing: 0.07em;
+  color: var(--fg-3); margin: 0 0 7px; font-weight: 650;
+}
+.sum-block ul { margin: 0; padding-left: 17px; }
+.sum-block li { font-size: 14px; margin-bottom: 4px; }
+.sum-block p { margin: 0; font-size: 14px; }
+.sum-block.danger { border-color: var(--dead-line); background: var(--dead-bg); }
+.sum-block.danger h3 { color: var(--dead); }
+
+.sum-jump {
+  margin: 16px 0 0; font-size: 12.5px; color: var(--fg-3); text-align: center;
+}
+
+/* ---------- the summary's picture ---------- *
+ * Two drawings under the headline: where the pool sits against the trigger line (with the
+ * ratchet floor marked), and the last 24 burns drawn to scale. The activity strip is the
+ * point — when the engine stops it goes flat, which is legible before any number is read. */
+
+.sum-visual { margin: 0 0 16px; }
+.sum-visual:empty { display: none; }
+
+.gauge {
+  border: 1px solid var(--line); border-radius: 10px;
+  background: var(--bg-1); padding: 13px 15px;
+  box-shadow: var(--shadow-card);
+}
+.gauge-head {
+  display: flex; justify-content: space-between; align-items: baseline;
+  gap: 10px; flex-wrap: wrap; margin-bottom: 9px;
+}
+.gauge-title {
+  font-size: 11.5px; color: var(--fg-3); text-transform: uppercase;
+  letter-spacing: .06em; font-weight: 650;
+}
+.gauge-read { font-family: var(--mono); font-size: 12.5px; color: var(--fg-2); }
+.gauge-read b { font-size: 16px; color: var(--fg); font-weight: 650; }
+
+.gauge-track {
+  position: relative; height: 26px; border-radius: 7px;
+  background: var(--bg-3); border: 1px solid var(--line);
+  overflow: hidden;
+}
+.gauge-fill { height: 100%; border-radius: 6px 0 0 6px; transition: width .5s ease; }
+.gauge-track.live .gauge-fill { background: linear-gradient(90deg, #12b76a, #0a7a4a); }
+.gauge-track.warn .gauge-fill { background: linear-gradient(90deg, #f79009, #b54708); }
+.gauge-track.dead .gauge-fill { background: linear-gradient(90deg, #f04438, #cf2e21); }
+/* The ratchet floor: the cap can never drop below it, so it is the real "closest possible"
+ * mark on this scale. */
+.gauge-floor {
+  position: absolute; top: -2px; bottom: -2px; width: 2px;
+  background: var(--fg-3); opacity: .75;
+}
+.gauge-scale {
+  display: flex; justify-content: space-between; gap: 10px;
+  font-family: var(--mono); font-size: 11px; color: var(--fg-3); margin-top: 6px;
+}
+.gauge-gap { margin-top: 9px; font-size: 13.5px; font-weight: 650; }
+.gauge-gap.live { color: var(--live); }
+.gauge-gap.warn { color: var(--warn); }
+.gauge-gap.dead { color: var(--dead); }
+
+.activity { margin-top: 12px; }
+.act-head {
+  display: flex; justify-content: space-between; gap: 10px; flex-wrap: wrap;
+  font-size: 11.5px; color: var(--fg-3); margin-bottom: 6px;
+  text-transform: uppercase; letter-spacing: .05em; font-weight: 650;
+}
+.act-head .muted { text-transform: none; letter-spacing: 0; font-weight: 400; }
+.actbars { display: flex; align-items: flex-end; gap: 2px; height: 54px; }
+.actbars i {
+  flex: 1 1 0; min-width: 2px; min-height: 2px;
+  background: var(--dead); opacity: .75; border-radius: 2px 2px 0 0;
+}
+
+/* "show all N messages" — the message list is 70+ entries long */
+.msgs-more { margin-top: 12px; }
+.msgs-more [hidden] { display: none; }
+
+/* ---------- prose ---------- */
+
+.prose { max-width: 74ch; }
+.prose p { margin: 0 0 12px; font-size: 14.5px; color: var(--fg-2); }
+.prose p b { color: var(--fg); }
+.prose p.muted { color: var(--fg-3); font-size: 13px; }
+
+/* ---------- inline explainer tags ---------- */
+
+.src-note {
+  font-size: 11px; color: var(--fg-3); font-weight: 400;
+  text-transform: none; letter-spacing: 0;
+}
+.src.demo { vertical-align: middle; margin: 0 1px; }
+
+/* ---------- simulator presets ---------- */
+
+.presets { display: flex; gap: 8px; flex-wrap: wrap; }
+.preset {
+  font: inherit; font-size: 13.5px; font-weight: 600;
+  color: var(--fg-2); background: var(--bg-2);
+  border: 1px solid var(--line-2); border-radius: 9px;
+  padding: 9px 14px; cursor: pointer; text-align: left;
+  display: flex; flex-direction: column; gap: 1px; line-height: 1.3;
+  transition: background .15s, border-color .15s, color .15s;
+}
+.preset small { font-size: 11px; font-weight: 400; color: var(--fg-3); }
+.preset:hover { background: var(--bg-3); color: var(--fg); }
+.preset.active { border-color: var(--sel-line); background: var(--sel-bg); color: var(--sel-fg); }
+.preset.active small { color: var(--accent); }
+
 /* ---------- anchor nav ---------- */
 
 .anchors { display: flex; gap: 4px; flex-wrap: wrap; margin-top: 7px; }

@@ -93,6 +93,16 @@ node scripts/retag-data-strings.mjs          # lib/contracts.js 的中文 → �
   结果就是"跳了但看不到内容"。
 - 吸顶头部的高度由 `html { scroll-padding-top }` 预留（窄屏 168px）。改头部高度时要同步改它。
 
+**改样式表时的自检（踩过一次）**：`check.mjs` 只审计 id 接线和文案，**不检查 CSS 选择器覆盖**。
+整份重写 `style.css` 时漏掉了 `.summary` / `.prose` / `.preset` 等一整段规则，页面照常渲染、
+测试全绿，但结论区悄悄退化成没有卡片样式的白底 —— 被读者当成"太单调"。
+重写后跑一次选择器对比，剩下的差异必须每一条都能说清是有意删除：
+
+```bash
+git show <上一个提交>:assets/style.css | Out-File _old.css -Encoding utf8
+node -e "const fs=require('fs');const g=p=>fs.readFileSync(p,'utf8').split(/\r?\n/).filter(l=>l.includes('{')&&/^[.#a-zA-Z*@\[]/.test(l.trim())).map(l=>l.trim().replace(/\s*\{.*$/,''));const o=g('_old.css'),c=g('assets/style.css');for(const s of o.filter(x=>!c.includes(x)))console.log('  '+s)"
+```
+
 ## 快照刷新（GitHub Actions）
 
 页面上所有「历史」——烧毁曲线、24h/7d 趋势、链上留言时间线——都来自 `data/` 下的预生成 JSON。
@@ -307,7 +317,7 @@ node scripts/test-log-scan.mjs       # 19  L1 日志分窗扫描：重试、失�
 node scripts/test-promote.mjs        # 16  发布清单（optionalOutputs 必须与 outputs 一起发布）
 node scripts/verify-snapshots.mjs    # --  快照形状 + 不能倒退（刷新流程的守门人）
 node scripts/preview-live.mjs        # 16  合成 LIVE 数据，断言恢复后不残留「已停」
-node scripts/test-render.mjs         # 116 无头渲染（DOM stub + 真实网络 + 中英切换后零中文/零裸键名）
+node scripts/test-render.mjs         # 126 无头渲染（DOM stub + 真实网络 + 中英切换后零中文/零裸键名）
 ```
 
 `npm test` 依次跑上面全部（除取证类与 `verify-snapshots`，后者需要一份待校验的产物）。

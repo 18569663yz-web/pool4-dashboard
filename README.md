@@ -132,6 +132,10 @@ node scripts/collect.mjs https://your-own-node.example.com
 「文本 → calldata 十六进制」转换器（`assets/app.js` 的 `initHexTool()`，用 `TextEncoder`，
 不联网、不上传）。
 
+**留言列表默认只渲染最新 6 条**，其余收在「显示全部 N 条」按钮后面（`MSG_PAGE`）——
+70 多条、每条都是多行英文原文，全展开会把「证据」变成一场没有尽头的滚动。
+上面的筛选器（全部 / 项目方 / 社区 / 重点）始终作用于**全集**，切换筛选会重新折叠。
+
 源码级机制说明（含每条的源码行依据、交叉验算、历史回放对账、以及 §12 的更正记录）在 **[`NOTES.md`](NOTES.md)**。
 
 ---
@@ -235,7 +239,9 @@ node scripts/verify-snapshots.mjs           # 只校验 data/ 里现有的快照
 
 从上到下的层级：
 
-1. **30 秒摘要** —— 发生了什么 / 影响我什么 / 什么时候恢复 / 一件该知道的风险
+1. **30 秒摘要** —— 发生了什么 / 影响我什么 / 什么时候恢复 / 一件该知道的风险，
+   外加一张**位置图**：池内 IMD 相对烧毁触发线的进度条（标出棘轮下限），
+   下面是最近 24 次烧毁的柱状图 —— 引擎一停，这张图就是平的，不用读任何数字就能看出来
 2. **这是什么** —— 一段大白话交代背景，不假设读者读过合约
 3. **证据**（现状、熄火时间线、两道门、池 A 对照、链上留言 + 发消息教程）
 4. **机制**（当前数据、模拟器、拆分、奖励流、sIMD、历史）
@@ -325,7 +331,7 @@ node scripts/check-summaries.mjs     # 链上留言原文与中文摘要并列�
 node scripts/test-build-data.mjs     # build-data 全流程离线跑通（fixture 覆盖本机不可达的 Base 段）
 node scripts/verify-snapshots.mjs    # 快照形状 + 「不能倒退」（刷新流程的守门人）
 node scripts/preview-live.mjs        # 合成 LIVE 数据，确认恢复后不残留「已停」（16 项）
-node scripts/test-render.mjs         # 无头渲染：每个区块都产出内容 + 切到英文后无中文、无裸键名（117 项）
+node scripts/test-render.mjs         # 无头渲染：每个区块都产出内容 + 切到英文后无中文、无裸键名（126 项）
 node scripts/verify-ownership.mjs    # 三重验证各合约 owner（含 sIMD 的 renounce）
 node scripts/audit-owner-powers.mjs  # 权限清单与链上所有权逐项比对
 node scripts/replay.mjs 3            # 归档回放最近 3 次 trim 并与 totalBurned() 对账
@@ -350,7 +356,7 @@ node scripts/verify-live-site.mjs                                   # 默认 htt
 node scripts/verify-live-site.mjs --url http://127.0.0.1:5173
 ```
 
-当前状态：**390 项断言全部通过**（13 个套件：46 + 26 + 13 + 21 + 8 + 31 + 19 + 16 + 35 + 18 + 24 + 16 + 117，
+当前状态：**399 项断言全部通过**（13 个套件：46 + 26 + 13 + 21 + 8 + 31 + 19 + 16 + 35 + 18 + 24 + 16 + 126，
 另加 `check-html-i18n.mjs` / `check-terminology.mjs` 的覆盖率报告与各取证脚本的自校验）。
 
 `check.mjs` 会审计所有脚本用到的 JSON-RPC 方法，确保只有

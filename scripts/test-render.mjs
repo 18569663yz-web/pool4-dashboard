@@ -229,6 +229,18 @@ ok("recovery is state-appropriate", /不会自动发生|已经具备触发条件
 ok("risk cites the developer's own words", /withdraw the entire position/.test(content("sum-risk")));
 ok("document title carries a conclusion", /已停|恢复|贴着|正在工作|触发线/.test(document.title), document.title);
 
+// The summary's picture. A missing drawing is a silent regression: the page still renders
+// and every other assertion still passes — it is just back to three paragraphs of prose,
+// which is exactly what the reader complained about.
+const visual = content("sum-visual");
+ok("summary draws the pool-against-trigger gauge", /class="gauge"/.test(visual) && /gauge-fill/.test(visual), `${visual.length} chars`);
+ok("the gauge is filled to the pool's real position", /gauge-fill" style="width:\d+(\.\d+)?%/.test(visual));
+ok("the gauge marks the ratchet floor", /gauge-floor" style="left:\d/.test(visual));
+ok("the gauge names both ends of the scale", /触发线的下限/.test(visual) && /触发线 [\d,]+/.test(visual));
+const actBars = (visual.match(/<i style="height:/g) || []).length;
+ok("summary draws the burn-activity strip", /class="actbars"/.test(visual) && actBars >= 5, `${actBars} bars`);
+ok("the activity strip says when the last burn was", /最近一次烧毁/.test(visual));
+
 // State-independent assertions: read what the page actually says, then check it is
 // self-consistent. Hard-coding "已停" would break the moment the engine re-ignites.
 console.log("\nstate consistency (must hold in every state)");
@@ -292,16 +304,30 @@ ok("lede no longer claims everything is withdrawable", !/它有权随时取走�
 ok("powers table marks each row live/expired", /已失效/.test(content("powers")) && /有效/.test(content("powers")));
 
 console.log("\non-chain messages");
-ok("message list rendered", (content("messages-list").match(/class="msg /g) || []).length >= 10, `${(content("messages-list").match(/class="msg /g) || []).length} messages`);
+// The list is collapsed to the newest few on purpose: 70+ multi-line English quotes turned
+// "证据" into an endless scroll. So assert the collapsed view, the button that expands it,
+// and that expanding really does restore the whole set.
+const msgShown = () => (content("messages-list").match(/class="msg /g) || []).length;
+const msgTotal = JSON.parse(readFileSync(ROOT + "data/messages.json", "utf8")).messages.length;
+ok("message list renders the newest few", msgShown() >= 5 && msgShown() <= 8, `${msgShown()} of ${msgTotal}`);
+ok("the rest sit behind a show-all button", new RegExp(`显示全部 ${msgTotal} 条`).test(text("msg-toggle")), text("msg-toggle"));
 ok("dev messages visually distinct", content("messages-list").includes("from-dev") && content("messages-list").includes("from-community"));
 ok("newest dev post has its own card", content("messages-latest").length > 100, `${content("messages-latest").length} chars`);
 ok("the 'will change pool4 settings' post is present", /Will change the settings on he pool4 soon/.test(content("messages-latest") + content("messages-list")));
 ok("that post is flagged as important", /重点/.test(content("messages-latest")) || /重点/.test(content("messages-list")));
-const msgTotal = JSON.parse(readFileSync(ROOT + "data/messages.json", "utf8")).messages.length;
 ok("filter counts match the message count, not the tx count", Number(text("msgf-all-n")) === msgTotal, `all=${text("msgf-all-n")} dev=${text("msgf-dev-n")} community=${text("msgf-community-n")} expected=${msgTotal}`);
-ok("each message links to Etherscan", (content("messages-list").match(/etherscan\.io\/tx\//g) || []).length >= 10);
+// >= rather than ==: some message bodies quote an Etherscan link of their own.
+ok("each rendered message links to Etherscan", (content("messages-list").match(/etherscan\.io\/tx\//g) || []).length >= msgShown());
 ok("long messages are clamped", content("messages-list").includes("clamped") || content("messages-list").includes("展开全文"));
 ok("data-source detail states the filter pitfall", /filter=to\|from/.test(content("messages-tech")), content("messages-tech").slice(0, 90));
+
+{
+  const toggle = els.get("msg-toggle");
+  toggle.onclick();
+  ok("show-all expands to every message", msgShown() === msgTotal, `${msgShown()} of ${msgTotal}`);
+  toggle.onclick();
+  ok("show-less collapses back to the newest few", msgShown() >= 5 && msgShown() <= 8, `${msgShown()} messages`);
+}
 
 console.log("\nplain-language pass");
 const all = html + "\n" + [...els.values()].map((e) => e.innerHTML).join("\n");

@@ -36,6 +36,8 @@ const state = {
   messages: null,
   messagesZh: null,
   msgFilter: "all",
+  /** The message list is 70+ entries long; "证据" is unreadable if all of them are open. */
+  msgShowAll: false,
   /** BurnExecutor's queue history, pre-generated from Transfer logs (see scripts/fetch-bridge-history.mjs) */
   bridgeSnapshot: null,
   baseCache: null,
@@ -525,6 +527,80 @@ function wireQuoteLinks() {
  * the 30-second summary — the first thing a holder reads
  * ------------------------------------------------------------------ */
 
+/* ------------------------------------------------------------------ *
+ * the summary's one picture
+ *
+ * The 30-second summary is the only block every reader sees, and it used to be three
+ * paragraphs of prose — accurate, and completely unreadable at a glance. Two drawings
+ * answer the two questions it exists for: "how close is the pool to firing?" (the gauge,
+ * with the ratchet floor marked) and "is the engine doing anything at all?" (the burn
+ * activity strip, which is flat the moment the engine stops).
+ * ------------------------------------------------------------------ */
+
+function renderSummaryVisual() {
+  const s = state.snap;
+  const el = $("sum-visual");
+  if (!s || !el) return;
+  const d = s.derived;
+  const v = s.values;
+  const held = v["hook.tokensInPool"];
+  const cap = v["hook.inventoryCap"];
+  if (held === undefined || cap === undefined || cap === 0n) {
+    el.innerHTML = "";
+    return;
+  }
+
+  const atLine = d.gapRaw === 0n && d.pendingTrim === 0n;
+  const tone = d.state === "LIVE" || atLine ? "live" : d.state === "CRITICAL" ? "warn" : "dead";
+  const pct = Math.max(0, Math.min(100, Number((held * 10000n) / cap) / 100));
+  const floorPct = Math.max(0, Math.min(100, Number((d.floor * 10000n) / cap) / 100));
+
+  // Only worth a line when there is a real distance left to cover. "The pool sits exactly on
+  // the line" is already the headline directly above the gauge — printing it twice adds noise.
+  const gapLine = d.gapRaw > 0n ? tr("s.518", { p0: fmt18(d.gapRaw, 2) }) : "";
+
+  const gauge =
+    `<div class="gauge">` +
+    `<div class="gauge-head">` +
+    `<span class="gauge-title">${tr("s.519")}</span>` +
+    `<span class="gauge-read"><b>${fmt18(held, 2)}</b> / ${fmt18(cap, 2)} IMD</span>` +
+    `</div>` +
+    `<div class="gauge-track ${tone}">` +
+    `<div class="gauge-fill" style="width:${pct.toFixed(2)}%"></div>` +
+    `<div class="gauge-floor" style="left:${floorPct.toFixed(2)}%"></div>` +
+    `</div>` +
+    `<div class="gauge-scale">` +
+    `<span>0</span>` +
+    `<span>${tr("s.520", { p0: fmt18(d.floor, 0) })}</span>` +
+    `<span>${tr("s.521", { p0: fmt18(cap, 2) })}</span>` +
+    `</div>` +
+    (gapLine ? `<div class="gauge-gap ${tone}">${gapLine}</div>` : "") +
+    `</div>`;
+
+  // Burn activity: the last N trims, drawn to scale. A flat strip is the whole point —
+  // it is what "the engine stopped" looks like before you read a single number.
+  const trims = (state.timeline && state.timeline.trims) || [];
+  const N = 24;
+  const recent = trims.slice(-N);
+  let activity = "";
+  if (recent.length) {
+    const vals = recent.map((x) => Number(x.burned) / 1e18);
+    const maxV = Math.max(...vals, 1e-9);
+    const bars = recent
+      .map((x, i) => `<i style="height:${Math.max(3, (Math.sqrt(vals[i]) / Math.sqrt(maxV)) * 100).toFixed(1)}%"></i>`)
+      .join("");
+    const lastTs = recent[recent.length - 1].t;
+    activity =
+      `<div class="activity">` +
+      `<div class="act-head"><span>${tr("s.522", { p0: recent.length })}</span>` +
+      `<span class="muted">${lastTs ? tr("s.523", { p0: ago(lastTs) }) : ""}</span></div>` +
+      `<div class="actbars" role="img" aria-label="${esc(tr("s.522", { p0: recent.length }))}">${bars}</div>` +
+      `</div>`;
+  }
+
+  el.innerHTML = gauge + activity;
+}
+
 function renderSummary() {
   const s = state.snap;
   if (!s) return;
@@ -699,6 +775,7 @@ function renderSummary() {
         : "") +
       tr("s.091")
   );
+  renderSummaryVisual();
 }
 
 /* ------------------------------------------------------------------ *
@@ -1697,6 +1774,9 @@ const MSG_FILTERS = {
   key: (m) => !!m.important,
 };
 
+/** How many messages are rendered before the "show all" button appears. */
+const MSG_PAGE = 6;
+
 function renderMessages() {
   const data = state.messages;
   const el = $("messages-list");
@@ -1745,9 +1825,32 @@ function renderMessages() {
 
   const filter = MSG_FILTERS[state.msgFilter] || MSG_FILTERS.all;
   const shown = all.filter(filter);
-  el.innerHTML = shown.length
-    ? shown.map((m) => renderMessageBody(m, false)).join("")
+  // 70+ entries, each a multi-line English quote: rendered in full they make "证据" a
+  // scroll with no end, which is what the reader complained about. Show the newest few and
+  // let the button do the rest — the filters above still search the whole set.
+  const visible = state.msgShowAll ? shown : shown.slice(0, MSG_PAGE);
+  el.innerHTML = visible.length
+    ? visible.map((m) => renderMessageBody(m, false)).join("")
     : tr("s.409");
+
+  const more = $("messages-more");
+  const toggle = $("msg-toggle");
+  if (more && toggle) {
+    const hidden = shown.length - visible.length;
+    if (hidden > 0) {
+      toggle.hidden = false;
+      toggle.textContent = tr("msg.showAll", { p0: shown.length });
+    } else if (state.msgShowAll && shown.length > MSG_PAGE) {
+      toggle.hidden = false;
+      toggle.textContent = tr("msg.showLess");
+    } else {
+      toggle.hidden = true;
+    }
+    toggle.onclick = () => {
+      state.msgShowAll = !state.msgShowAll;
+      renderMessages();
+    };
+  }
 
   setHtml(
     "messages-tech",
@@ -1804,6 +1907,9 @@ function initMessageFilters() {
     if (b && b.addEventListener) {
       b.addEventListener("click", () => {
         state.msgFilter = k;
+        // A filter is a fresh question: collapse back to the newest few rather than
+        // leaving a 40-entry list open because the previous filter was expanded.
+        state.msgShowAll = false;
         for (const k2 of Object.keys(MSG_FILTERS)) {
           const b2 = $("msgf-" + k2);
           if (b2) b2.className = "preset" + (k2 === k ? " active" : "");

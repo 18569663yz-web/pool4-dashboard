@@ -26,5 +26,45 @@
   "s.515": {
     "zh": "复制失败，请手动选中",
     "en": "Copy failed — select it manually"
+  },
+  "s.516": {
+    "zh": "池子正好贴着触发线，下一笔卖出就会烧",
+    "en": "The pool sits exactly on the line — the next sell fires a burn"
+  },
+  "s.517": {
+    "zh": "还有 {p0} IMD 等待销毁",
+    "en": "{p0} IMD waiting to be burned"
+  },
+  "s.518": {
+    "zh": "距离重新点火还差 {p0} IMD",
+    "en": "{p0} IMD short of re-igniting"
+  },
+  "s.519": {
+    "zh": "池内 IMD 相对烧毁触发线的位置",
+    "en": "Pool IMD against the burn trigger line"
+  },
+  "s.520": {
+    "zh": "触发线的下限 {p0}",
+    "en": "Trigger line floor {p0}"
+  },
+  "s.521": {
+    "zh": "触发线 {p0}",
+    "en": "Trigger line {p0}"
+  },
+  "s.522": {
+    "zh": "最近 {p0} 次烧毁",
+    "en": "Last {p0} burns"
+  },
+  "s.523": {
+    "zh": "最近一次烧毁 {p0}",
+    "en": "Last burn {p0}"
+  },
+  "msg.showAll": {
+    "zh": "显示全部 {p0} 条",
+    "en": "Show all {p0}"
+  },
+  "msg.showLess": {
+    "zh": "只显示最新几条",
+    "en": "Show only the newest"
   }
 }

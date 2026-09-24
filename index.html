@@ -67,6 +67,8 @@ try { if (localStorage.getItem("pool4.theme") === "dark") document.documentEleme
     <div id="state-flip"></div>
     <h2 class="sum-headline" id="sum-headline">正在读取链上状态…</h2>
 
+    <div class="sum-visual" id="sum-visual"></div>
+
     <div class="sum-grid">
       <div class="sum-block">
         <h3 data-i18n="html.sum.impactTitle">这意味着什么</h3>
@@ -197,8 +199,8 @@ try { if (localStorage.getItem("pool4.theme") === "dark") document.documentEleme
   <section id="messages-section">
     <h2 data-i18n="html.msg.title">链上留言</h2>
     <p class="lede" id="messages-lede">
-      <b>这意味着什么：</b>项目方没有 Twitter 公告，官网文档也还没上线——
-      <b>他只在链上发留言</b>。下面这些就是原始记录，按时间倒序，原文照录。
+      <b>这意味着什么：</b>项目方把公告直接写在链上——官网、API 文档和推特都在，
+      但链上留言带区块时间戳、事后改不了，是最原始的一手记录。
     </p>
     <div class="card" id="messages-latest-card" style="display:none">
       <div class="k tiny muted" style="text-transform:uppercase;letter-spacing:.06em;margin-bottom:8px" data-i18n="html.msg.latestLabel">最新一条 · 项目方</div>
@@ -212,14 +214,17 @@ try { if (localStorage.getItem("pool4.theme") === "dark") document.documentEleme
         <button type="button" id="msgf-key" class="preset"><span data-i18n="html.msg.filterKey">重点</span><small id="msgf-key-n">—</small></button>
       </div>
       <div id="messages-list" style="margin-top:12px"></div>
+      <div id="messages-more" class="msgs-more">
+        <button type="button" class="btn ghost" id="msg-toggle" hidden></button>
+      </div>
     </div>
 
     <details class="tech howto" id="howto">
       <summary data-i18n="html.howto.summary">教程：怎么给项目方发一条链上留言</summary>
       <div class="howto">
         <p data-i18n-html="html.howto.intro">
-          项目方没有 Twitter，官网文档也还没上线——<b>他只读这个地址收到的链上留言</b>。
-          任何人都能发，不需要许可，也不需要持有 IMD。下面是完整步骤。
+          除了推特和文档，项目方也会读发到这个地址的链上留言——<b>任何人都能发</b>，
+          不需要许可，也不需要持有 IMD。下面是完整步骤。
         </p>
         <ol>
           <li data-i18n-html="html.howto.step1">
