@@ -113,9 +113,44 @@ node scripts/refresh-snapshots.mjs                                    # 交给 C
 
 被跳过的快照不会被动过，页面上的过期横幅会开始计时 —— 这是设计好的降级路径，不是静默失败。
 
-**`data/history.json`（7 MB 原始事件索引）**：它进仓库是为了让 CI 的第一次运行是增量（约 2000 区块）
+**`data/history.json`（7 MB 原始事件索引）**：它进仓库是为了让 CI 的第一次运行是增量
 而不是全量重扫（16 万区块）。workflow 用 `actions/cache` 在运行之间传递它的更新，**不**把它提交进 git
 —— 否则仓库每小时长 7 MB。
+
+## 只在「抓到链上数据后」才执行的分支
+
+这张表是一次事故的产物：`build-data.mjs` 的 summary 引用了 Base 段**块内**声明的 `bridgeBlocks`，
+每个不传 `--skip-base` 的运行都会崩 —— 也就是 CI 的每一次。而本机因为 Blockscout 被阻，一直传
+`--skip-base`，那行代码**从未执行过**：「本机跑得通」这句话是真的，但毫无意义。
+
+判据：**新写一个分支时，问它「抓不到数据时会不会执行」。不会，就必须给它一个 fixture。**
+
+| 脚本 | 分支 | 本机可达？ | 依据 |
+| --- | --- | --- | --- |
+| `build-data.mjs` | timeline 段全部 | ✅ | 读本地 `history.json` + L1 RPC |
+| | **Base 段全部**（blockscout 抓取、burn callers、bridge 窗口扫描） | ❌ | 本机 node 连不上 `base.blockscout.com` |
+| | `bs()` 的重试与 `No logs found` 分支 | ❌ | 同上 |
+| | `missing.length` → 用 Base RPC 补时间戳 | ❌ | 只有 blockscout 没给 `timeStamp` 时才走 |
+| | Base 段的 `bridgeLogs` 窗口扫描 | ⚠️ 代码可达，但 3–5 分钟 | L1 RPC 可用 |
+| | **summary 的 `baseSummary` 分支** | ❌ | ← 出事的这一条，现由 fixture 覆盖 |
+| `index-logs.mjs` | 全量扫描路径（无 `history.json` 或 `--force`） | ⚠️ 可达但极慢 | 160 个窗口 |
+| | 增量路径（`resume at scanTo − 200`） | ✅ | 每小时实际走这条 |
+| | `window partial: …` | ⚠️ 偶发 | 某窗口 `eth_getLogs` 失败时 |
+| `scan-swaps.mjs` | 窗口全部失败 → 写出空结果 | ✅ 可达 | 由 `verify-snapshots` 的「scan actually saw swaps」拦住 |
+| `fetch-messages.mjs` | 整个脚本（分页抓取、`important` 缺失警告） | ❌ | 同样依赖 blockscout |
+| `fetch-bridge-history.mjs` | 窗口扫描 | ✅ | L1 RPC |
+| | 0 条 transfer | ⚠️ 现在会**失败退出** | 一周内不可能没有转账，0 条即抓取失败 |
+| `collect.mjs` | 逐项读数失败（`errors` 分支） | ✅ | RPC 抖动时 |
+| | Base 侧读数 | ✅ | Base RPC 可达（与 blockscout 不同） |
+
+排查中顺手修掉的两个同类问题：
+
+1. **`fetch-bridge-history.mjs` 扫描失败时会写出一份「看起来正常」的快照**：`logs` 为空 → 所有历史点
+   都等于今天的余额 → 页面显示「没有变化」。现在 0 条 transfer 直接退出非零，刷新保留旧快照。
+2. **`index-logs.mjs` 每小时全量重扫 16 万区块**：`start` 用的是 `scanFrom`（索引地板 25887000），
+   而不是上次停下的 `scanTo`。现在从 `scanTo − 200` 续扫（200 区块的重组余量），1 个窗口、约 1 秒；
+   `totalLogs` 仍是**整份索引**的条数（页面拿它说「扫描了 N 条」），另加 `scannedLogs` / `carriedLogs`
+   两个诊断字段。
 
 ## 已修正的错误（不要再犯）
 
@@ -161,6 +196,7 @@ node scripts/test-bridge.mjs         # 24  第二道门趋势判定 + 文案不�
 node scripts/check-html-i18n.mjs     # --  index.html 里会漏进英文模式的中文（应为 0）
 node scripts/check-terminology.mjs   # --  术语表跨语言一致性（15 组在用术语，0 不匹配）
 node scripts/check-summaries.mjs     # --  留言原文与中文摘要并列，供人工校对
+node scripts/test-build-data.mjs     # 20  build-data 全流程离线跑通（fixture 覆盖本机不可达的 Base 段）
 node scripts/verify-snapshots.mjs    # --  快照形状 + 不能倒退（刷新流程的守门人）
 node scripts/preview-live.mjs        # 16  合成 LIVE 数据，断言恢复后不残留「已停」
 node scripts/test-render.mjs         # 116 无头渲染（DOM stub + 真实网络 + 中英切换后零中文/零裸键名）

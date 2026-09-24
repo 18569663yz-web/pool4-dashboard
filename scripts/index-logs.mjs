@@ -95,7 +95,28 @@ if (!force) {
   } catch {}
 }
 
-const start = fromArg ? Number(fromArg.slice(7)) : db.scanFrom || 25887000; // just before MarketOpened
+/* Incremental by design.
+ *
+ * `scanFrom` is the floor of the whole index (just before MarketOpened) and never moves;
+ * resuming from it would rescan ~160k blocks every hour. The previous index's `scanTo` is
+ * where the last run actually stopped, so that is where this one picks up — minus a small
+ * margin, so a reorg near the tip cannot leave a hole. Everything older than the resume
+ * point is carried over from the previous file, which is why `totalLogs` counts the merged
+ * index rather than this run's windows (the page quotes it as "the whole lifecycle"). */
+const FLOOR = 25887000; // just before MarketOpened
+const RESCAN_MARGIN = 200;
+const prevEvents = db.events || {};
+const prevScanTo = Number(db.scanTo) || 0;
+const start = fromArg
+  ? Number(fromArg.slice(7))
+  : prevScanTo
+    ? Math.max(FLOOR, prevScanTo - RESCAN_MARGIN)
+    : Number(db.scanFrom) || FLOOR;
+console.log(
+  prevScanTo && !fromArg
+    ? `resuming at block ${start} (previous index reached ${prevScanTo}; re-reading ${RESCAN_MARGIN} blocks for reorg safety)`
+    : `starting a full scan at block ${start}`
+);
 console.log(`scanning blocks ${start}..${head} in 1000-block windows`);
 
 const all = [];
@@ -115,11 +136,23 @@ for (let from = start; from <= head; from += 1000) {
   await sleep(60);
 }
 
-// bucket by event name
+// bucket by event name — fresh windows plus everything the previous index already held
+// below the resume point (the two sets cannot overlap by construction).
 const events = {};
 for (const [name, t0hex] of Object.entries(TOPIC0)) {
   events[name] = { topic0: t0hex, signature: TOPICS[name], logs: [] };
 }
+let carried = 0;
+for (const [name, prev] of Object.entries(prevEvents)) {
+  if (!events[name]) continue;
+  for (const l of prev.logs || []) {
+    if (parseInt(l.blockNumber, 16) < start) {
+      events[name].logs.push(l);
+      carried++;
+    }
+  }
+}
+
 let unknown = 0;
 for (const l of all) {
   const name = BY_TOPIC[(l.topics[0] || "").toLowerCase()];
@@ -129,15 +162,38 @@ for (const l of all) {
   }
   events[name].logs.push(l);
 }
+
+// Defensive: (blockNumber, logIndex) is unique chain-wide, so this can only fire if a
+// previous index was written with overlapping windows.
+const seen = new Set();
 for (const e of Object.values(events)) {
+  e.logs = e.logs.filter((l) => {
+    const key = l.blockNumber + ":" + (l.logIndex || "0x0");
+    if (seen.has(key)) return false;
+    seen.add(key);
+    return true;
+  });
   e.logs.sort((a, b) => parseInt(a.blockNumber, 16) - parseInt(b.blockNumber, 16) || parseInt(a.logIndex, 16) - parseInt(b.logIndex, 16));
   e.count = e.logs.length;
 }
 
-db = { address: ADDR.hook, head, scanFrom: start, scanTo: head, fetchedAt: new Date().toISOString(), totalLogs: all.length, unknownTopicLogs: unknown, events };
+const indexedLogs = Object.values(events).reduce((n, e) => n + e.count, 0);
+db = {
+  address: ADDR.hook,
+  head,
+  scanFrom: FLOOR,
+  scanTo: head,
+  fetchedAt: new Date().toISOString(),
+  totalLogs: indexedLogs,
+  scannedLogs: all.length,
+  carriedLogs: carried,
+  unknownTopicLogs: unknown,
+  events,
+};
 writeFileSync(OUT, JSON.stringify(db, null, 2));
 
-console.log(`\nscanned ${all.length} logs in ${((Date.now() - t0) / 1000).toFixed(1)}s (${unknown} with unknown topics)`);
+console.log(`\nscanned ${all.length} logs in ${((Date.now() - t0) / 1000).toFixed(1)}s over ${done} windows (${unknown} with unknown topics)`);
+console.log(`index now holds ${indexedLogs} logs (${carried} carried over, ${indexedLogs - carried} from this scan)`);
 for (const [name, e] of Object.entries(events)) {
   if (!e.count) continue;
   const f = parseInt(e.logs[0].blockNumber, 16);

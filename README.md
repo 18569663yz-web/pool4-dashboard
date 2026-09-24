@@ -250,6 +250,8 @@ scripts/serve.mjs            本地静态服务器
 scripts/shoot.mjs            整页截图（中英各一份，走 DevTools 协议）
 scripts/refresh-snapshots.mjs    刷新五份快照：生成到临时目录 → 校验 → 通过才替换
 scripts/verify-snapshots.mjs     快照校验：形状 + 数值量级 + 「不能倒退」
+scripts/make-base-fixture.mjs    从真实事件生成离线 fixture（data/_fixture-base.json）
+scripts/test-build-data.mjs      用 fixture 在无网络环境下跑通 build-data 的完整路径
 scripts/collect.mjs          实时快照 → data/baseline.json
 scripts/index-logs.mjs       分块 eth_getLogs 全历史索引 → data/history.json
 scripts/build-data.mjs       生成前端用的精简数据 → data/timeline.json, data/base.json
@@ -294,6 +296,7 @@ node scripts/test-bridge.mjs         # 第二道门趋势判定 + 「待桥接 �
 node scripts/check-html-i18n.mjs     # index.html 中会漏进英文模式的中文（应为 0）
 node scripts/check-terminology.mjs   # 术语表跨语言一致性（--sample 打印 10 组中英对照）
 node scripts/check-summaries.mjs     # 链上留言原文与中文摘要并列，供人工校对
+node scripts/test-build-data.mjs     # build-data 全流程离线跑通（fixture 覆盖本机不可达的 Base 段）
 node scripts/verify-snapshots.mjs    # 快照形状 + 「不能倒退」（刷新流程的守门人）
 node scripts/preview-live.mjs        # 合成 LIVE 数据，确认恢复后不残留「已停」（16 项）
 node scripts/test-render.mjs         # 无头渲染：每个区块都产出内容 + 切到英文后无中文、无裸键名（116 项）

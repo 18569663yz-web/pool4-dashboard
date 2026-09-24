@@ -53,6 +53,16 @@ for (let start = fromBlock; start <= head; start += CHUNK) {
 console.log(`  ${logs.length} transfer events`);
 logs.sort((a, b) => a.block - b.block);
 
+/* A week with zero transfers is not a real state: the pool trades constantly and the
+ * waypoint moves in and out with every trim and bridge. Zero events means the scan failed,
+ * and continuing would publish a snapshot whose "historical" points all equal today's
+ * balance — a file that looks perfectly valid and says "nothing ever moved". Fail instead,
+ * so the refresh keeps the previous snapshot. */
+if (logs.length === 0) {
+  console.error("no IMD transfers touched BurnExecutor in the window — the log scan failed, refusing to write a snapshot");
+  process.exit(1);
+}
+
 /** Net flow into the waypoint over the last `blocks` blocks. */
 function netSince(blocks) {
   const cutoff = head - blocks;

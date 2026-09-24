@@ -18,7 +18,8 @@
     "verify:snapshots": "node scripts/verify-snapshots.mjs",
     "check:derived": "node scripts/check-derived.mjs",
     "check:summaries": "node scripts/check-summaries.mjs",
-    "test": "node scripts/selftest.mjs && node scripts/check.mjs && node scripts/check-derived.mjs && node scripts/test-simulate.mjs && node scripts/test-state-machine.mjs && node scripts/test-bridge.mjs && node scripts/check-html-i18n.mjs && node scripts/check-terminology.mjs && node scripts/preview-live.mjs && node scripts/test-render.mjs",
+    "fixture": "node scripts/make-base-fixture.mjs",
+    "test": "node scripts/selftest.mjs && node scripts/check.mjs && node scripts/check-derived.mjs && node scripts/test-build-data.mjs && node scripts/test-simulate.mjs && node scripts/test-state-machine.mjs && node scripts/test-bridge.mjs && node scripts/check-html-i18n.mjs && node scripts/check-terminology.mjs && node scripts/preview-live.mjs && node scripts/test-render.mjs",
     "refresh": "node scripts/refresh-snapshots.mjs"
   },
   "engines": { "node": ">=20" }
