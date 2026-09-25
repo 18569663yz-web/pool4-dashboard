@@ -103,17 +103,54 @@ if (chain) {
 /* ---------- 2. is the failure visible on the page? ---------- */
 console.log("\nwhat the page would show for this data");
 {
+  /* Exactly the five the page monitors, and NOT baseline.json.
+   *
+   * baseline.json is a snapshot the CI commits and assets/app.js deliberately does not fetch:
+   * it is a diagnostic artefact, not something the banner speaks for. Worse, its timestamp is
+   * milliseconds (`fetchedAt: 1790268585235`) while lib/snapshots.js assumes epoch seconds for
+   * any number over 1e9, so it currently decodes as the year 58701 — an age of minus 500 million
+   * hours. Feeding it in here only appeared harmless because that bogus future timestamp can
+   * never win "oldest": it was a real bug hiding behind another one. With the millisecond bug
+   * fixed it would start winning, and this check would fail on a file the page does not monitor.
+   * So the list is kept identical to renderStaleBanner()'s, and asserted to be. */
   const sources = {
     timeline: JSON.parse(read("data/timeline.json")),
     base: JSON.parse(read("data/base.json")),
     volume: JSON.parse(read("data/volume.json")),
     messages: JSON.parse(read("data/messages.json")),
     "bridge-history": JSON.parse(read("data/bridge-history.json")),
-    baseline: JSON.parse(read("data/baseline.json")),
   };
   const oldest = oldestSnapshot(sources);
-  const bannerUp = oldest.ageHours > READ_STALE_AFTER_HOURS;
-  console.log(`  oldest snapshot: ${oldest.name} at ${oldest.ageHours.toFixed(1)}h → banner ${bannerUp ? "UP" : "down"}`);
+  /* A snapshot with no readable timestamp yields null. The page treats that as "no banner"
+   * (renderStaleBanner returns early), so this mirrors it rather than throwing — a check that
+   * dies with a TypeError tells the reader nothing about the data. */
+  const bannerUp = oldest ? oldest.ageHours > READ_STALE_AFTER_HOURS : false;
+  ok(
+    "every monitored snapshot carries a readable timestamp",
+    oldest !== null,
+    "oldestSnapshot() found none — a generator stopped stamping its output, so the banner can never rise"
+  );
+  console.log(
+    oldest
+      ? `  oldest snapshot: ${oldest.name} at ${oldest.ageHours.toFixed(1)}h → banner ${bannerUp ? "UP" : "down"}`
+      : "  oldest snapshot: none readable → banner down, and nothing can raise it"
+  );
+
+  /* Hold that list to the page's own. If someone adds a snapshot to one side only, the banner
+   * this check predicts stops being the banner a reader sees — and the failure would look like
+   * a data problem rather than a drifted list. */
+  {
+    const app = read("assets/app.js");
+    const call = app.slice(app.indexOf("oldestSnapshot({"));
+    const body = call.slice(0, call.indexOf("})"));
+    const pageNames = [...body.matchAll(/^\s*"?([a-z-]+)"?:/gm)].map((m) => m[1]).sort();
+    const checkNames = Object.keys(sources).sort();
+    ok(
+      `this check monitors the same snapshots the page does (${checkNames.join(", ")})`,
+      pageNames.join() === checkNames.join(),
+      `the page passes [${pageNames.join(", ")}], this check reads [${checkNames.join(", ")}]`
+    );
+  }
 
   /* The check that matters, and the only one that could have caught the live outage: a
    * snapshot this far behind the chain must not be rendered as a current reading. Either the

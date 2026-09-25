@@ -4,11 +4,240 @@
 // This catches the class of bug a static check cannot: a runtime throw halfway
 // through renderAll() that leaves half the page blank.
 //
-//   node scripts/test-render.mjs
-import { readFileSync } from "node:fs";
+//   node scripts/test-render.mjs            # the full suite, incl. the P0-3 four-state regression
+//   FS_VARIANT=<state> node scripts/test-render.mjs
+//                                           # internal: render ONE injected fixture and dump JSON.
+//                                           # Driven by this same file (see "the four-state
+//                                           # regression" at the bottom); not meant to be run by
+//                                           # hand, but harmless if you do.
+import { readFileSync, writeFileSync, mkdtempSync, rmSync, existsSync } from "node:fs";
 import { fileURLToPath } from "node:url";
+import { tmpdir } from "node:os";
+import { join } from "node:path";
+import { spawnSync } from "node:child_process";
 
 const ROOT = fileURLToPath(new URL("..", import.meta.url));
+
+/* ==================================================================== *
+ * Fixture-render mode.
+ *
+ * The four-state regression at the bottom of this file needs the SAME module rendered
+ * several times under different snapshots — and app.js cannot be re-imported for that.
+ * Two reasons, both measured, not assumed:
+ *
+ *   1. app.js calls init() at module scope, and init() runs boot(), which awaits initI18n().
+ *      A second import of the same specifier is a cache hit so it does not re-run; a second
+ *      import with a different query string DOES re-run, but then it races boot()'s own
+ *      awaits, and the DOM was read back while the dictionary was still empty. tr() falls
+ *      back to returning the key, and the page renders literal strings like "s.535".
+ *      (Measured: with repeated `import("../assets/app.js?query=N")`, only the FIRST position
+ *      rendered real copy; the rest produced lede === "s.535".)
+ *   2. lib/i18n.js keeps its dictionary in module state, so re-importing app.js without
+ *      re-importing i18n.js leaves two views of that state out of step.
+ *
+ * So each position is rendered in its OWN process, selected by FS_VARIANT. The result is
+ * handed back through a FILE rather than a pipe: a file survives a crashed child, and does
+ * not depend on stdio plumbing at all (pipes are unavailable in some sandboxes).
+ * ==================================================================== */
+const FIXTURE_VARIANT = process.env.FS_VARIANT || "";
+
+if (FIXTURE_VARIANT) {
+  const E18 = 10n ** 18n;
+  const { derive } = await import("../lib/contracts.js");
+  const { fmt18 } = await import("../lib/evm.js");
+
+  const RAW = JSON.parse(readFileSync(ROOT + "data/baseline.json", "utf8"));
+  const revive = (v) => (Array.isArray(v) ? v.map(revive) : typeof v === "string" && /^\d+$/.test(v) ? BigInt(v) : v);
+  const base = Object.fromEntries(Object.entries(RAW.values).map(([k, x]) => [k, revive(x)]));
+
+  const CAP = base["hook.inventoryCap"];
+  const FLOOR = base["hook.capFloor"];
+  const LIQ = base["hook.positionLiquidity"];
+  /** CappedBurnHook.pendingTrim(): floor(L * excess / held); 0 when held <= cap. */
+  const pendingTrimOf = (held, cap) => (held <= cap ? 0n : (LIQ * (held - cap)) / held);
+  /** The smallest excess that yields a non-zero pendingTrim. */
+  const smallestExcess = (() => {
+    let e = 1n;
+    while (pendingTrimOf(CAP + e, CAP) === 0n) e++;
+    return e;
+  })();
+
+  const POSITIONS = {
+    LIVE: { held: CAP + 1000n * E18, cap: CAP, floor: FLOOR },
+    B: { held: CAP, cap: CAP, floor: FLOOR },
+    C: { held: CAP + smallestExcess, cap: CAP, floor: FLOOR },
+    E: { held: CAP, cap: CAP, floor: CAP },
+    BELOW: { held: CAP - 1000n * E18, cap: CAP, floor: CAP },
+  };
+  const pos = POSITIONS[FIXTURE_VARIANT];
+  if (!pos) {
+    console.error(`[fixture] unknown FS_VARIANT=${FIXTURE_VARIANT}`);
+    process.exit(2);
+  }
+
+  const values = { ...base };
+  values["hook.tokensInPool"] = pos.held;
+  values["hook.inventoryCap"] = pos.cap;
+  values["hook.capFloor"] = pos.floor;
+  values["hook.pendingTrim"] = pendingTrimOf(pos.held, pos.cap);
+  const derived = derive(values, {});
+
+  const html = readFileSync(ROOT + "index.html", "utf8");
+  const ids = [...html.matchAll(/\bid="([^"]+)"/g)].map((m) => m[1]);
+  class El {
+    constructor(id) {
+      this.id = id;
+      this._html = "";
+      this.textContent = "";
+      this.className = "";
+      this.value = "0";
+      this.style = {};
+      this.attrs = {};
+    }
+    set innerHTML(v) {
+      this._html = String(v);
+    }
+    get innerHTML() {
+      return this._html;
+    }
+    addEventListener() {}
+    setAttribute(k, v) {
+      this.attrs[k] = String(v);
+    }
+    getAttribute(k) {
+      return this.attrs[k] ?? null;
+    }
+    removeAttribute(k) {
+      delete this.attrs[k];
+    }
+    appendChild() {}
+  }
+  const els = new Map(ids.map((id) => [id, new El(id)]));
+  const metaEls = new Map();
+  const makeMeta = (sel) => {
+    if (!metaEls.has(sel)) {
+      const m = new El(sel);
+      m.attrs = { content: "" };
+      metaEls.set(sel, m);
+    }
+    return metaEls.get(sel);
+  };
+  globalThis.document = {
+    getElementById: (id) => els.get(id) || null,
+    addEventListener: () => {},
+    hidden: false,
+    createElement: (t) => new El(t),
+    title: "",
+    documentElement: new El("html"),
+    querySelectorAll: () => [],
+    querySelector: (sel) => makeMeta(sel),
+    createRange: () => ({ selectNodeContents() {} }),
+    body: new El("body"),
+    head: new El("head"),
+  };
+  Object.defineProperty(globalThis, "navigator", { value: { language: "zh-CN" }, configurable: true, writable: true });
+  globalThis.location = { search: "", href: "http://localhost/", pathname: "/", hash: "" };
+  globalThis.history = { replaceState: () => {} };
+  const store = new Map();
+  globalThis.localStorage = {
+    getItem: (k) => (store.has(k) ? store.get(k) : null),
+    setItem: (k, v) => store.set(k, String(v)),
+    removeItem: (k) => store.delete(k),
+  };
+  globalThis.window = globalThis;
+  globalThis.addEventListener = () => {};
+  globalThis.removeEventListener = () => {};
+  globalThis.setInterval = () => 0;
+  globalThis.clearInterval = () => {};
+  globalThis.getComputedStyle = () => ({ getPropertyValue: () => "" });
+  globalThis.matchMedia = () => ({ matches: false, addEventListener: () => {} });
+  globalThis.requestAnimationFrame = (fn) => setTimeout(fn, 0);
+  globalThis.fetch = async (url) => {
+    const p = String(url).replace(/^https?:\/\/[^/]+\//, "").replace(/^\/+/, "").split("?")[0];
+    try {
+      return new Response(readFileSync(ROOT + p, "utf8"), { status: 200, headers: { "content-type": "application/json" } });
+    } catch {
+      return new Response("not found", { status: 404 });
+    }
+  };
+
+  /* renderOne() wraps every renderer in its own try/catch, so a thrower leaves its section
+   * silently empty instead of blanking the page. That is the right behaviour for a reader and
+   * the wrong one for a test: an empty section would otherwise be read as a semantic mismatch
+   * and the assertion would pass for the wrong reason. So the child reports these and the
+   * parent asserts the list is empty before judging any copy. */
+  const renderFailures = [];
+  const realError = console.error;
+  console.error = (...a) => {
+    const m = a.map(String).join(" ");
+    if (/^\[render\]/.test(m) || /\[invariant\]/.test(m)) renderFailures.push(m);
+  };
+
+  globalThis.__POOL4_FIXTURE__ = {
+    blockNumber: RAW.blockNumber,
+    blockTimestamp: RAW.blockTimestamp,
+    fetchedAt: RAW.fetchedAt,
+    endpoint: "test-render:" + FIXTURE_VARIANT,
+    values,
+    derived,
+    errors: {},
+    base: { blockNumber: 0, values: {}, errors: {}, chainId: 8453, skipped: true },
+  };
+
+  await import("../assets/app.js");
+  await new Promise((r) => setTimeout(r, 3000));
+  console.error = realError;
+
+  const strip = (h) =>
+    String(h)
+      .replace(/<[^>]+>/g, " ")
+      .replace(/&lt;/g, "<")
+      .replace(/&gt;/g, ">")
+      .replace(/&amp;/g, "&")
+      .replace(/&#39;/g, "'")
+      .replace(/&quot;/g, '"')
+      .replace(/\s+/g, " ")
+      .trim();
+  const txt = (id) => {
+    const e = els.get(id);
+    return e ? strip(e.innerHTML) || e.textContent || "" : "";
+  };
+  const items = (id) => {
+    const e = els.get(id);
+    return e ? (e.innerHTML.match(/<li>([\s\S]*?)<\/li>/g) || []).map(strip) : [];
+  };
+
+  const out = {
+    variant: FIXTURE_VARIANT,
+    derived: {
+      state: derived.state,
+      held: String(derived.held),
+      cap: String(derived.cap),
+      floor: String(derived.floor),
+      gapRaw: String(derived.gapRaw),
+      pendingTrim: String(derived.pendingTrim),
+    },
+    atLine: derived.gapRaw === 0n && (derived.pendingTrim === 0n || fmt18(derived.pendingTrim, 2) === "0.00"),
+    texts: {
+      vState: txt("v-state"),
+      vTitle: txt("v-title"),
+      headline: txt("sum-headline"),
+      lede: txt("verdict-lede"),
+      impact: items("sum-impact"),
+      vAnswer: txt("v-answer"),
+      states: txt("states"),
+      recovery: txt("sum-recovery"),
+      rpcBanner: txt("rpc-banner"),
+    },
+    renderFailures,
+  };
+  const outPath = process.env.FS_OUT;
+  const json = JSON.stringify(out, null, 2);
+  if (outPath) writeFileSync(outPath, json, "utf8");
+  else process.stdout.write(json);
+  process.exit(0);
+}
+
 const html = readFileSync(ROOT + "index.html", "utf8");
 const ids = [...html.matchAll(/\bid="([^"]+)"/g)].map((m) => m[1]);
 
@@ -209,7 +438,17 @@ for (const [id, label] of [
   ["preset-hint", "预设说明"],
 ]) {
   const c = content(id) || text(id);
-  ok(`${label} (#${id}) rendered ${c.length} chars`, c.length > 20, `len=${c.length}`);
+  /* The headline is held to a different bar on purpose. A character count measures length, and
+   * length is not what makes a headline correct: in the DORMANT state the right sentence is
+   * "IMD 的烧毁机制已经停了" — 13 characters, and a complete, true statement. The old `> 20` rule
+   * failed it and would have pushed someone to pad the copy to satisfy a test.
+   *
+   * What actually matters is asserted instead, and asserted properly elsewhere in this file: the
+   * headline must name a conclusion (not a placeholder, not a raw locale key, not "读取中"), and
+   * it must agree with the state badge. So the bar here is "is a sentence", and the semantic
+   * checks below do the real work. */
+  const floor = id === "sum-headline" ? 8 : 20;
+  ok(`${label} (#${id}) rendered ${c.length} chars`, c.length > floor, `len=${c.length}, floor=${floor}`);
 }
 // These must hold whatever the engine is doing — no state is hard-coded.
 ok("headline is a full assertion, not a placeholder", text("sum-headline").length > 8 && !/读取中/.test(text("sum-headline")), text("sum-headline"));
@@ -324,24 +563,24 @@ ok(
     (activityText() + " | " + verdictAnswer()).slice(0, 200)
   );
   ok(
-    `the strip names the moment the data stops at when the figure may not be the latest (qualify=${shouldQualify})`,
-    activityText().includes("数据截至") === shouldQualify,
-    `"${activityText().slice(0, 160)}"`
+    `the strip names the moment the data stops at whenever it may not be the latest (stale=${pageStale} requires it)`,
+    pageStale ? activityText().includes("数据截至") : true,
+    `"${activityText().slice(0, 160)}" — a stale snapshot must always say when it stopped`
   );
-  ok(
-    "the bars and the sentence carry the same qualifier, so they cannot contradict each other",
-    !/或更近/.test(activityText()) || /数据截至/.test(activityText()),
-    `"${activityText().slice(0, 160)}"`
-  );
-
-  /* The counter-check. agoBounded() only qualifies while the snapshot is stale, so a fresh
-   * snapshot must render plainly. The suite cannot rewrite the module's own clock here, so it
-   * asserts the invariant that survives either state: the qualifier never appears without the
-   * "as of" note that makes it meaningful, i.e. the pair is all-or-nothing. */
+  /* The other half, and the one this suite CAN pin down without a chain head: the "as of" note
+   * exists to make the upper bound credible, so one without the other is the defect. Checking
+   * the pair rather than pinning each to a state keeps the assertion honest — the page may
+   * legitimately add the note on a fresh-but-behind snapshot, which only the live page can see. */
   ok(
     "the qualifier and the as-of note are all-or-nothing, never a bare upper bound",
     /或更近/.test(activityText()) === /数据截至/.test(activityText()),
     `"${activityText().slice(0, 160)}"`
+  );
+  /* A stale snapshot rendering as a plain "X ago" is the original bug. Stated once, exactly. */
+  ok(
+    "a stale snapshot never reads as a plain live figure",
+    !(pageStale && !/或更近/.test(activityText())),
+    `"${activityText().slice(0, 160)}" — this is the 2026-09-24 reading`
   );
 }
 
@@ -596,6 +835,250 @@ console.log("\non-chain messages (en)");
   await setLang("zh");
   await new Promise((r) => setTimeout(r, 400));
   ok("switching back restores Chinese summaries", content("messages-list").includes("非官方译文"));
+}
+
+/* ==================================================================== *
+ * P0-3 — the four-state semantic regression
+ *
+ * WHY THIS SECTION EXISTS, AND WHY IT IS BUILT THIS WAY
+ *
+ * The assertions above read the page's own live state, then check that the page agrees with
+ * itself. That is a weak instrument for this bug. The summary's impact list used to assert only
+ * that three KEYWORDS appeared (/销毁|烧毁/, /质押|收益/, /触发线|交易|池子|待销毁/), and all
+ * three were present in the broken render. Keywords are not the claim. The claim is "is anything
+ * actually being burned right now", and on 2026-09-24 the page answered it two ways at once, in
+ * one card:
+ *
+ *     success headline / verdict badge : 烧毁已恢复，贴着触发线
+ *     verdict-lede                     : 销毁暂时停止                      (s.148)
+ *     impact list, first item          : 超出触发线的 IMD 正在被抽走销毁      (s.068)
+ *     impact list, third item          : 池子正好贴着触发线——下一笔卖出就会触发一次销毁  (s.069)
+ *
+ * s.068 is present tense and s.069 is future tense; they describe the same quantity and cannot
+ * both be true. At the line the excess is exactly zero, so nothing is being drawn off.
+ *
+ * THE ORACLE. Asking the state machine whether its own sentence is right is circular — the state
+ * machine is the thing under test. So the required sentences are derived HERE, from
+ * locales/zh.json, with the same {pN} substitution tr() does. Nothing Chinese is hard-coded:
+ * rewording a string must not require editing this file twice.
+ *
+ * The judge for "at the line" is written out as its own expression rather than called from the
+ * page:
+ *
+ *     atLine  <=>  gapRaw === 0 && (pendingTrim === 0 || fmt18(pendingTrim, 2) === "0.00")
+ *
+ * The second half is the part that matters. A pool a few wei over the cap reports a POSITIVE
+ * pendingTrim that still prints as "0.00" — pendingTrim() is floor(L*excess/held), so it is 0 or
+ * small at the very top of the band. To a reader that pool is at the line. A judge written as
+ * `gapRaw === 0n && pendingTrim === 0n` — which renderStates() used to carry as a hand-copied
+ * duplicate of onTheLine() — disagrees with onTheLine() on exactly that band. Both directions of
+ * that disagreement are asserted below.
+ * ==================================================================== */
+{
+  const { derive } = await import("../lib/contracts.js");
+  const { fmt18 } = await import("../lib/evm.js");
+  const zh = JSON.parse(readFileSync(ROOT + "locales/zh.json", "utf8"));
+
+  /** tr() with {pN} substitution, on the zh dictionary — the language the oracle speaks. */
+  const tr = (key, args) => {
+    const raw = zh[key];
+    if (raw === undefined) return `!!MISSING(${key})!!`;
+    return String(raw).replace(/\{p(\d)\}/g, (m, i) => (args && args["p" + i] !== undefined ? String(args["p" + i]) : m));
+  };
+  /** What a reader sees: tags stripped, whitespace collapsed. */
+  const plain = (s) => String(s).replace(/<[^>]+>/g, " ").replace(/\s+/g, " ").trim();
+
+  const VARIANT_TIMEOUT_MS = 60000;
+  const dir = mkdtempSync(join(tmpdir(), "pool4-states-"));
+
+  console.log("\nP0-3 four-state semantic regression (injected fixtures, real renderers)");
+
+  /** Render one position in its own process and read back the JSON it wrote. */
+  const renderPosition = (variant) => {
+    const outPath = join(dir, `${variant}.json`);
+    const r = spawnSync(process.execPath, [fileURLToPath(import.meta.url)], {
+      env: { ...process.env, FS_VARIANT: variant, FS_OUT: outPath },
+      stdio: "ignore", // no pipe: a file survives a crash and does not depend on stdio plumbing
+      timeout: VARIANT_TIMEOUT_MS,
+      killSignal: "SIGKILL",
+      cwd: ROOT,
+    });
+    // A non-answer is information, not a skip: the subprocess must have produced a file.
+    if (!existsSync(outPath)) {
+      return { variant, missing: true, status: r.status, signal: r.signal, error: r.error ? String(r.error.code || r.error.message) : "" };
+    }
+    try {
+      return JSON.parse(readFileSync(outPath, "utf8"));
+    } catch (e) {
+      return { variant, missing: true, status: r.status, signal: r.signal, error: "unparsable: " + e.message };
+    }
+  };
+
+  const POSITIONS = ["LIVE", "B", "C", "E", "BELOW"];
+  const got = new Map();
+  for (const v of POSITIONS) got.set(v, renderPosition(v));
+  rmSync(dir, { recursive: true, force: true });
+
+  /* The health gate, first and unconditionally. renderOne() wraps every renderer in its own
+   * try/catch, so a renderer that THROWS leaves its section silently empty while the page
+   * still looks fine and `npm test` still goes green. An empty section would also be read as a
+   * semantic mismatch by the assertions below — i.e. they could pass for the wrong reason.
+   * So: no position is judged on its copy until every position has been shown to render. */
+  for (const v of POSITIONS) {
+    const f = got.get(v);
+    if (f.missing) {
+      ok(`fixture ${v} produced a result`, false, `subprocess said nothing: status=${f.status} signal=${f.signal} ${f.error}`);
+    }
+  }
+  const sound = POSITIONS.filter((v) => !got.get(v).missing);
+  ok(`all ${POSITIONS.length} fixture positions rendered (${sound.length} responded)`, sound.length === POSITIONS.length, sound.join(","));
+
+  for (const v of sound) {
+    const f = got.get(v);
+    ok(
+      `${v}: no renderer threw while drawing this position (nothing silently blank)`,
+      Array.isArray(f.renderFailures) && f.renderFailures.length === 0,
+      (f.renderFailures || []).join("\n       ") || "(none reported)"
+    );
+    ok(
+      `${v}: every judged section produced text`,
+      f.texts.impact.length > 0 && f.texts.vAnswer.length > 0 && f.texts.headline.length > 0 && f.texts.vTitle.length > 0,
+      `impact=${f.texts.impact.length} vAnswer=${f.texts.vAnswer.length}B headline=${f.texts.headline.length}B — ` +
+        `an empty section is a fixture problem, not a semantic mismatch`
+    );
+  }
+
+  const judge = (f) => {
+    const state = f.derived.state;
+    const atLine = f.atLine;
+    const impact = f.texts.impact.join(" || ");
+    const label = `${f.variant} [state=${state} gapRaw=${f.derived.gapRaw} pendingTrim=${f.derived.pendingTrim} atLine=${atLine}]`;
+
+    /* ---- the badge must name the position the fixture actually is ---- */
+    const badgeOk = atLine ? /贴着触发线/.test(f.texts.vState) : state === "DORMANT" ? /已停/.test(f.texts.vState) : /工作中/.test(f.texts.vState);
+    ok(`${label} — the badge names the right position`, badgeOk, `badge="${f.texts.vState}"`);
+
+    /* ---- s.068 is PRESENT TENSE. It may appear only when something is really being burned.
+     *      "At the line" means the excess is zero, so it must never appear there — whatever
+     *      derive() chose to call the state. This is the positive-and-negative pair the old
+     *      invariant (app.js renderSummary) was missing: that one only checked "has a pending
+     *      trim but is not LIVE", so all of these positions slipped through it. ---- */
+    const mustBeBurning = state === "LIVE" && !atLine;
+    const saysBurning = new RegExp(plain(tr("s.068")).replace(/[.*+?^${}()|[\]\\]/g, "\\$&").slice(0, 12)).test(impact);
+    ok(
+      `${label} — present-tense s.068 appears exactly when something is being burned`,
+      saysBurning === mustBeBurning,
+      `s.068 ${saysBurning ? "PRESENT" : "absent"}, expected ${mustBeBurning ? "PRESENT" : "absent"} ` +
+        `(state=${state} atLine=${atLine}).\n       impact: ${impact.slice(0, 260)}`
+    );
+
+    /* ---- the two mutually exclusive sentences must never share one list ---- */
+    const future = new RegExp(plain(tr("s.069")).replace(/[.*+?^${}()|[\]\\]/g, "\\$&").slice(0, 12)).test(impact);
+    ok(
+      `${label} — "正在被抽走销毁" (s.068, present) and "下一笔卖出就会触发" (s.069, future) never coexist`,
+      !(saysBurning && future),
+      `impact: ${impact.slice(0, 260)}`
+    );
+
+    /* ---- the lede may not contradict the headline ---- */
+    const headlineRecovered = /已恢复|贴着触发线/.test(f.texts.headline) || /已恢复|贴着触发线/.test(f.texts.vTitle);
+    const ledeStopped = /销毁暂时停止|销毁已经停止/.test(f.texts.lede);
+    ok(
+      `${label} — the lede never says "stopped" under an "it recovered" headline`,
+      !(headlineRecovered && ledeStopped),
+      `headline="${f.texts.headline}" / v-title="${f.texts.vTitle}" / lede="${f.texts.lede}"`
+    );
+
+    /* ---- "on the line" is not "below the line". The answer block has a sentence for each, and
+     *      using the below-the-line one about a pool that EQUALS the line is a factual error,
+     *      not just a clash of tone.
+     *
+     *      The predicate is gapRaw, not the state. An earlier version of this assertion keyed on
+     *      `state === "DORMANT"` and flagged the BELOW position too — where the pool really is
+     *      under the line and the sentence is true. A test that fails on correct output is worse
+     *      than no test, so it keys on the geometric fact. ---- */
+    if (BigInt(f.derived.gapRaw) === 0n) {
+      ok(
+        `${label} — a pool that is ON the line is not described as BELOW it`,
+        !/水位在线的下面|还在触发线下面/.test(f.texts.vAnswer + " " + impact),
+        `gapRaw=0 (exactly on the line) but the copy says "below the line": ` +
+          `answer="${f.texts.vAnswer.slice(0, 180)}" impact="${impact.slice(0, 160)}"`
+      );
+    }
+  };
+
+  for (const v of sound) judge(got.get(v));
+
+  /* ------------------------------------------------------------------ *
+   * The positive control, and why it is not optional.
+   *
+   * Every assertion above is a NEGATIVE except one: "s.068 must be absent". A suite of
+   * negatives passes trivially if the renderer starts emitting nothing, or if a future
+   * refactor collapses the LIVE branch into the at-line one. So the LIVE position is also
+   * asserted in the positive direction — with 1000 IMD genuinely over the cap, s.068 MUST
+   * appear and MUST carry the amount.
+   * ------------------------------------------------------------------ */
+  {
+    const live = got.get("LIVE");
+    const impact = live.texts.impact.join(" || ");
+    ok(
+      "LIVE counter-check — with something really burning, s.068 MUST still appear (guards against over-correcting)",
+      /正在被抽走销毁/.test(impact),
+      `impact: ${impact.slice(0, 260)}`
+    );
+    ok(
+      "LIVE counter-check — a real burn reports its amount, and not the at-line wording",
+      /当前待销毁量/.test(impact) && !/下一笔卖出就会触发一次销毁/.test(impact),
+      `impact: ${impact.slice(0, 260)}`
+    );
+  }
+
+  /* ------------------------------------------------------------------ *
+   * One judge, not two.
+   *
+   * renderStates() carried a hand-written copy of onTheLine() that dropped the
+   * `fmt18(pendingTrim, 2) === "0.00"` layer. The direction is worth stating exactly, because
+   * it is easy to report backwards: the copy is CONSERVATIVE in that band — it says "not at the
+   * line" about a pool onTheLine() calls at the line. It does not over-report at-line. What it
+   * does is make two sections of one page describe one position differently, which is why the
+   * fix is "call the function", not "loosen the copy".
+   * ------------------------------------------------------------------ */
+  {
+    const c = got.get("C");
+    const copyJudge = BigInt(c.derived.gapRaw) === 0n && BigInt(c.derived.pendingTrim) === 0n;
+    ok(
+      "the threshold band is reachable, and the two judges disagree there (so the duplicate is a real defect)",
+      BigInt(c.derived.gapRaw) === 0n && BigInt(c.derived.pendingTrim) > 0n && c.atLine === true && copyJudge === false,
+      `gapRaw=${c.derived.gapRaw} pendingTrim=${c.derived.pendingTrim} onTheLine=${c.atLine} copyJudge=${copyJudge} — ` +
+        `pendingTrim prints as "${fmt18(BigInt(c.derived.pendingTrim), 2)}", which is still "at the line" to a reader`
+    );
+
+    const src = readFileSync(ROOT + "assets/app.js", "utf8");
+    /* Counted across the whole file, not just renderStates(), because the defect is "there is a
+     * second judge somewhere", not "it is on a particular line". Two accepted exceptions exist and
+     * are named here rather than silently tolerated:
+     *   - comments (the fix's own 'this used to be' note)
+     *   - tick()'s flip detector, which compares two SNAPSHOTS over time (did the position change
+     *     since the last reading) rather than describing the current one. That is a different
+     *     question from onTheLine()'s "is the pool on the line right now", and reusing
+     *     onTheLine() there would be wrong: it would need the same treatment for the same reason,
+     *     but it is not the same predicate.
+     * Anything else is a copy that can drift. */
+    const srcLines = readFileSync(ROOT + "assets/app.js", "utf8").split("\n");
+    const copies = [];
+    for (let i = 0; i < srcLines.length; i++) {
+      const ln = srcLines[i];
+      if (/^\s*(\/\/|\*|\/\*)/.test(ln)) continue; // comment
+      if (!/gapRaw === 0n && \w+\.?pendingTrim === 0n/.test(ln)) continue;
+      copies.push(`L${i + 1}: ${ln.trim().slice(0, 100)}`);
+    }
+    ok(
+      "no code restates the at-line test instead of calling onTheLine()",
+      copies.length === 0,
+      `${copies.length} hand-rolled duplicate(s) in app.js — each is a second judge that can drift ` +
+        `from the first:\n       ${copies.join("\n       ")}`
+    );
+  }
 }
 
 console.log(`\n${pass} passed, ${fail} failed`);

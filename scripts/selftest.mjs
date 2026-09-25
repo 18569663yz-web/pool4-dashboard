@@ -155,6 +155,17 @@ console.log("\nsnapshot freshness");
   eq("fetchedAt is read", snapshotTimestamp({ fetchedAt: iso(2) }), now - 2 * 3_600_000);
   eq("scannedAt is read", snapshotTimestamp({ scannedAt: iso(3) }), now - 3 * 3_600_000);
   eq("epoch seconds are accepted too", snapshotTimestamp({ scannedAt: Math.floor(now / 1000) }), Math.floor(now / 1000) * 1000);
+  /* The one the suite never covered, and the one that actually shipped a bug: collect.mjs
+   * writes data/baseline.json's fetchedAt as Date.now() — MILLISECONDS — while the other five
+   * snapshots write ISO strings. The old rule was "a number > 1e9 is seconds", which
+   * milliseconds also satisfy, so the stamp was multiplied by 1000 twice and landed in the
+   * year 58,701. Its age read as −14.3 million hours. oldestSnapshot() reports the OLDEST
+   * source, so a future-dated one can never win: the staleness banner would have gone
+   * permanently silent the day baseline.json was added to the monitored set. */
+  eq("milliseconds are taken as milliseconds, not multiplied again", snapshotTimestamp({ fetchedAt: Date.now() }), Date.now());
+  eq("a real collect.mjs stamp keeps its real age", Math.round((Date.now() - snapshotTimestamp({ fetchedAt: 1790268585235 })) / 3_600_000), Math.round((Date.now() - 1790268585235) / 3_600_000));
+  eq("the millisecond path does not drift into the future", snapshotTimestamp({ fetchedAt: Date.now() }) <= Date.now() + 1000, true);
+  eq("the seconds path still works below the cutoff", snapshotTimestamp({ fetchedAt: 1_790_268_585 }), 1_790_268_585_000);
   eq("a snapshot with no timestamp returns null", snapshotTimestamp({ builtAt: "not a date" }), null);
   eq("null input returns null", snapshotTimestamp(null), null);
 

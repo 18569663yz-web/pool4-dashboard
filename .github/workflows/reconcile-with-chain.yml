@@ -1,0 +1,64 @@
+name: reconcile with the chain
+
+# The other suites are all OFFLINE, and that is exactly how this project shipped two bugs
+# nobody noticed: a snapshot job that stopped for six hours, and a real 1050.49 IMD burn on
+# Base. selftest + check + test-render were green through both, because none of them ever
+# asked the chain a question. A green offline suite is evidence that the CODE is consistent,
+# not evidence that the DATA is true.
+#
+# So this runs on a schedule, and it fails loudly when the committed numbers and the chain
+# disagree. It needs no browser and no secrets — only public RPC endpoints.
+#
+# Read-only: eth_call, eth_getBlockByNumber. No wallet, no transaction, no write.
+
+on:
+  schedule:
+    # Offset from the snapshot job (:17) so this reads the file the refresh just produced
+    # rather than racing it. If the refresh job has stopped, this is what notices.
+    - cron: "47 * * * *"
+  workflow_dispatch:
+  push:
+    branches: [main]
+    paths:
+      - "lib/**"
+      - "scripts/check-live-numbers.mjs"
+      - "data/timeline.json"
+      - "data/baseline.json"
+
+permissions:
+  contents: read
+
+concurrency:
+  group: reconcile-with-chain
+  cancel-in-progress: false
+
+jobs:
+  reconcile:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+
+      # Public endpoints differ in behaviour between a laptop and a runner; POOL4_RPC_URLS
+      # redirects every script without touching the defaults that local runs use.
+      - name: Reconcile the committed snapshots against the chain
+        env:
+          POOL4_RPC_URLS: ${{ vars.POOL4_RPC_URLS }}
+        run: node scripts/check-live-numbers.mjs
+
+      - name: Summarise
+        if: always()
+        run: |
+          echo "### chain reconciliation" >> $GITHUB_STEP_SUMMARY
+          if [ "${{ job.status }}" = "success" ]; then
+            echo "The committed snapshots agree with the chain." >> $GITHUB_STEP_SUMMARY
+          else
+            echo "**The committed snapshots disagree with the chain.** Either the refresh job" >> $GITHUB_STEP_SUMMARY
+            echo "has stopped (check the \`refresh snapshots\` workflow) or a number at the source" >> $GITHUB_STEP_SUMMARY
+            echo "is wrong. See the job log for the item that failed." >> $GITHUB_STEP_SUMMARY
+          fi

@@ -58,6 +58,13 @@ const state = {
  * tiny helpers
  * ------------------------------------------------------------------ */
 
+/** Hex-helper handle. Declared here — not beside initHexTool() at the bottom — because boot()
+ * calls it once the locale dictionary has loaded, and boot() runs before any code at the bottom
+ * of this file is reached. A `let` there would be in its temporal dead zone at that moment and
+ * the call would throw. It starts as a no-op so that boot() is safe even if initHexTool() never
+ * ran (no #hex-input on the page). */
+let hexRender = () => {};
+
 const $ = (id) => document.getElementById(id);
 const setHtml = (id, html) => {
   const el = $(id);
@@ -101,8 +108,25 @@ function statTile(label, value, opts = {}) {
   );
 }
 
+/** "N 秒前" — and it must never print a number that cannot be true.
+ *
+ * Three inputs used to produce readings that are not readings:
+ *
+ *  1. A timestamp in the FUTURE (a node whose clock leads ours, or a block time read from a
+ *     different chain). `d` went negative, fell into the first branch, and the page said
+ *     "-60 秒前". Negative elapsed time is the one thing a clock can never report, so it is
+ *     clamped to zero: "刚刚" / "just now" is the true statement about a boundary that has not
+ *     happened yet.
+ *  2. A MISSING timestamp (`m.ts` absent, a block with no resolved time). `d` was NaN, every
+ *     `<` comparison was false, and the page rendered the literal string "NaN" — through both
+ *     the "days" branch and the interpolation. NaN is now rejected before any branch runs.
+ *  3. The 172799s / 172800s boundary switched from "48.0 小时" to "2.0 天" for one second of
+ *     change. Not a bug, but it is the kind of jump a reader notices; the hour branch now ends
+ *     at a round "48.0 小时" and the day branch starts there, which is where the two already
+ *     met — `s.005` and `s.006` are unchanged. */
 const ago = (tsSec) => {
-  const d = Date.now() / 1000 - tsSec;
+  if (typeof tsSec !== "number" || !Number.isFinite(tsSec)) return tr("s.001");
+  const d = Math.max(0, Date.now() / 1000 - tsSec);
   if (d < 90) return tr("s.003", { p0: Math.round(d) });
   if (d < 5400) return tr("s.004", { p0: (d / 60).toFixed(0) });
   if (d < 172800) return tr("s.005", { p0: (d / 3600).toFixed(1) });
@@ -148,7 +172,24 @@ const asOf = () =>
   mayNotBeLatest() && state.timeline && state.timeline.builtAt
     ? tr("stale.asOf", { p0: fmtDateTime(Date.parse(state.timeline.builtAt) / 1000) })
     : "";
-const iso = (tsSec) => new Date(tsSec * 1000).toISOString().replace("T", " ").slice(0, 19) + " UTC";
+/** "2026-09-24 09:44 UTC" — every timestamp on this page is UTC, and labelled as such.
+ *
+ * `new Date(NaN).toISOString()` throws `RangeError: Invalid time value`, and this formatter is
+ * called on values straight out of snapshots and events — several of which are legitimately
+ * absent. data/timeline.json carries milestones with `"t": null` where the block time could not
+ * be resolved, and `iso(Number(x))` at the dripper's lastDripAt turns any unparseable string
+ * into NaN. Each of those used to take out the whole renderer, which is the same failure shape
+ * as the unread-view crash: one missing field, one blank section, an exception the reader never
+ * sees. A timestamp that is not a timestamp returns the page's existing "unavailable" string
+ * instead, so the caller keeps rendering and the reader is told the truth. */
+const iso = (tsSec) => {
+  if (typeof tsSec !== "number" || !Number.isFinite(tsSec)) return UNAVAILABLE;
+  try {
+    return new Date(tsSec * 1000).toISOString().replace("T", " ").slice(0, 19) + " UTC";
+  } catch {
+    return UNAVAILABLE;
+  }
+};
 const blocksToDays = (n) => (n * 12) / 86400;
 
 /**
@@ -195,6 +236,17 @@ async function boot() {
   initPresets();
   initMessageFilters();
   initLangSwitch();
+  /* The hex helper renders text into "0x…" plus a size line, and that size line is a locale
+   * string (s.513: "共 {p0} 字节 · 十六进制 {p1} 个字符"). It used to be built at the end of
+   * initHexTool(), which init() calls synchronously — long before this function has awaited the
+   * locale files. tr() falls back to returning the key when the dictionary is empty, so a
+   * #hex-input that already had content on load showed the literal text "s.513".
+   *
+   * That is not a rare path: the browser restores a textarea's value on a soft refresh, on a
+   * back navigation, and on form restore, so the reader sees the raw key without ever having
+   * typed into the box. Moving the first call here — after initI18n() has resolved — fixes it;
+   * onLangChange() below already re-renders it when the language changes. */
+  hexRender();
   onLangChange(() => {
     // UNAVAILABLE is read all over the render code, so it has to follow the language:
     // it is a module-level variable captured once at boot, not a tr() call per use.
@@ -210,6 +262,35 @@ async function boot() {
     applyPreset(state.preset);
     if (state.snap) renderAll();
   });
+  /* ---- test-only fixture injection (never set by the page itself) ----
+   *
+   * scripts/test-render.mjs sets globalThis.__POOL4_FIXTURE__ before importing this module, so
+   * the REAL renderVerdict()/renderStates()/renderSummary() run against a synthetic snapshot.
+   *
+   * Why injection instead of asserting the live state: the page's own reading of the chain is
+   * the thing under test. If the state machine mislabels a position, a test that asks the state
+   * machine whether it is right agrees with the bug. The fixture supplies `values` and derives
+   * everything through the real derive(); the expectations live in the test file, written out
+   * as the sentences each position must produce.
+   *
+   * The injection point sits at the very END of boot(), after the real tick() has already run, so
+   * a plain page load — where both globals are undefined — takes the identical path it always
+   * did. Production never assigns either global, so this block is dead code in the browser.
+   *
+   * The `return` is load-bearing, not defensive padding. `setInterval(tick, 1000)` sits below it,
+   * and tick() overwrites state.snap with a fresh chain reading. Leaving the timer registered
+   * would mean the fixture is on screen only until the first tick — an assertion that passes or
+   * fails depending on how fast the RPC answers. No timer is started for a fixture session. */
+  if (globalThis.__POOL4_FIXTURE__) {
+    state.snap = globalThis.__POOL4_FIXTURE__;
+    if (globalThis.__POOL4_TIMELINE__ !== undefined) state.timeline = globalThis.__POOL4_TIMELINE__;
+    renderAll();
+    return;
+  }
+  /* The first paint must already carry the conclusion, so this reads the chain once before
+   * handing over to the timer. It is NOT optional: the test suite stubs setInterval into a
+   * recorder that never fires, so without this call nothing renders at all and every assertion
+   * in test-render.mjs fails at zero characters — silently, since no exception is raised. */
   await tick();
   setInterval(tick, 1000);
 }
@@ -308,36 +389,72 @@ async function tick() {
  * render
  * ------------------------------------------------------------------ */
 
+/** Renderers that failed on this pass, in call order. Read by renderRpcBanner(). */
+let renderFailures = [];
+
+/**
+ * Run one renderer, and let it fail alone.
+ *
+ * renderAll() used to be a bare sequence of 25 calls, so a throw anywhere inside one of them
+ * cancelled all the calls after it. That is not a theoretical failure mode: a single unread
+ * view (pendingTrim, inventoryCap, capFloor, tokensInPool) used to throw out of renderVerdict()
+ * via fmt18(), and the page then left fourteen renderers unrun — states, timeline, doors,
+ * awaiting, volume, panel, sim-out, trim-now, rewards, simd, owner, watch, hist, burnrate,
+ * pools, sources, footer all rendered nothing. Half a blank page, from one field.
+ *
+ * A renderer that breaks must therefore cost exactly its own section. The failure is recorded
+ * by name so the banner can say WHICH one — "one view could not be read" is a true statement,
+ * "all configured RPC endpoints are down" is not, and this page's whole selling point is that
+ * it does not say things like that. */
+function renderOne(name, fn) {
+  try {
+    fn();
+  } catch (e) {
+    const msg = String((e && e.message) || e);
+    renderFailures.push({ name, msg });
+    console.error("[render] " + name + " threw:", msg, e);
+  }
+}
+
 function renderAll() {
-  /* Freshness first. renderStaleBanner() is what sets state.snapshotAgeHours, and the
-   * conclusion's "X ago or more recent" wording and its "data as of" note are chosen from
-   * that value — so it has to be known before the renderers that read it run. Listed again at
-   * the end of this function to paint the DOM element itself. */
+  /* Freshness first, and NOT through renderOne(). renderStaleBanner() is what sets
+   * state.snapshotAgeHours, and the conclusion's "X ago or more recent" wording and its
+   * "data as of" note are chosen from that value — so it has to be known before the renderers
+   * that read it run. Listed again at the end of this function to paint the DOM element itself.
+   *
+   * Routing it through renderOne() would be a downgrade: if it failed, snapshotAgeHours would
+   * keep its previous value or stay null, and the staleness banner would silently disappear.
+   * Hiding stale data is worse than the bug this file is fixing — so it stays outside, and a
+   * failure here is loud rather than absorbed. */
+  renderFailures = [];
   renderStaleBanner();
-  renderStatus();
-  renderSummary();
-  renderMessages();
-  renderVerdict();
-  renderStates();
-  renderFlipLog();
-  renderTimeline();
-  renderDoors();
-  renderAwaiting();
-  renderVolume();
-  renderPanel();
-  renderSimulator();
-  renderTrimNow();
-  renderRewards();
-  renderSimd();
-  renderOwner();
-  renderMonitor();
-  renderHistory();
-  renderBurnRate();
-  wireQuoteLinks();
-  renderPools();
-  renderSources();
-  renderFooter();
-  renderRpcBanner();
+
+  renderOne("renderStatus", renderStatus);
+  renderOne("renderSummary", renderSummary);
+  renderOne("renderMessages", renderMessages);
+  renderOne("renderVerdict", renderVerdict);
+  renderOne("renderStates", renderStates);
+  renderOne("renderFlipLog", renderFlipLog);
+  renderOne("renderTimeline", renderTimeline);
+  renderOne("renderDoors", renderDoors);
+  renderOne("renderAwaiting", renderAwaiting);
+  renderOne("renderVolume", renderVolume);
+  renderOne("renderPanel", renderPanel);
+  renderOne("renderSimulator", renderSimulator);
+  renderOne("renderTrimNow", renderTrimNow);
+  renderOne("renderRewards", renderRewards);
+  renderOne("renderSimd", renderSimd);
+  renderOne("renderOwner", renderOwner);
+  renderOne("renderMonitor", renderMonitor);
+  renderOne("renderHistory", renderHistory);
+  renderOne("renderBurnRate", renderBurnRate);
+  renderOne("wireQuoteLinks", wireQuoteLinks);
+  renderOne("renderPools", renderPools);
+  renderOne("renderSources", renderSources);
+  renderOne("renderFooter", renderFooter);
+  // The banner reports what the rest did, so it has to run before the freshness banner
+  // repaints and after every failure has been collected.
+  renderOne("renderRpcBanner", renderRpcBanner);
   renderStaleBanner();
 }
 
@@ -610,7 +727,13 @@ function renderSummaryVisual() {
     return;
   }
 
-  const atLine = d.gapRaw === 0n && d.pendingTrim === 0n;
+  /* onTheLine(d), not a restatement of it. This was
+   * `d.gapRaw === 0n && d.pendingTrim === 0n` — the same threshold-less copy renderStates()
+   * carried, and with the same effect: in the band where gapRaw is 0 and pendingTrim is positive
+   * but prints as "0.00", this said "not at the line" while the headline above the gauge said
+   * the pool was on it. The gauge's tone is a verdict about the position, so it has to come from
+   * the one function that owns that verdict. */
+  const atLine = onTheLine(d);
   const tone = d.state === "LIVE" || atLine ? "live" : d.state === "CRITICAL" ? "warn" : "dead";
   const pct = Math.max(0, Math.min(100, Number((held * 10000n) / cap) / 100));
   const floorPct = Math.max(0, Math.min(100, Number((d.floor * 10000n) / cap) / 100));
@@ -699,6 +822,15 @@ function renderSummary() {
   // display threshold the headline says where the pool is instead of naming a zero amount.
   const atLine = onTheLine(d);
   const pendingTxt = d.pendingTrim > 0n ? fmt18(d.pendingTrim, 2) : "";
+  /* atLine outranks the raw state for every piece of this header, including at E — DORMANT with
+   * held == cap == floor. At E the pool really is flush against the line, and "贴着触发线" is the
+   * accurate description of where it is; DORMANT describes what the state machine expects to
+   * happen next, which belongs in the lede and the state card, not in the one-line headline.
+   *
+   * So the wording stays atLine here in all three of headline / title / subtitle, and the E
+   * nuance is carried by verdict-lede (s.539). Keying the headline on the state as well would
+   * make it say "停止" at E while the badge two blocks away said "贴着触发线" — the same
+   * contradiction, moved rather than removed. One predicate, one wording, everywhere. */
   let headline;
   let title;
   if (d.state === "LIVE" && !atLine && pendingTxt) {
@@ -716,6 +848,16 @@ function renderSummary() {
   // and the state badge are read side by side, and any of them claiming "正在工作" while the
   // others say "贴着触发线" makes the page look like it disagrees with itself.
   const showsLive = d.state === "LIVE" && !atLine && !!pendingTxt;
+  /* The tab title must land on the SAME arm the headline did. The old fall-through ended in
+   * title.critical, so DORMANT — the state where nothing is burnable AND the line cannot fall any
+   * further — was announced in the tab as "触发线仍在下降" ("the trigger line is still falling").
+   * That is the one thing DORMANT means it is NOT: cap == floor means the line has bottomed out,
+   * which is precisely why nothing will happen without the pool rising on its own.
+   *
+   * The headline never had this bug — it falls through to hero.stopped — so the tab and the
+   * headline disagreed on the same state, visible side by side on a phone. Read against the live
+   * chain on 2026-09-25 (held 7,262.91, cap == floor == 9,000, DORMANT) the tab said the line was
+   * still falling while the headline said the mechanism had stopped. */
   title = showsLive
     ? tr("title.live")
     : atLine || d.state === "LIVE"
@@ -724,7 +866,7 @@ function renderSummary() {
         ? tr("title.critical")
         : days !== null && days >= 1
           ? tr("title.stopped", { count: days })
-          : tr("title.critical");
+          : tr("title.stoppedNoDays");
   if (document.title !== title) document.title = title;
   const pt = $("page-title");
   if (pt) pt.textContent = tr("meta.title");
@@ -736,9 +878,9 @@ function renderSummary() {
         ? tr("subtitle.atLine")
         : d.state === "CRITICAL"
           ? tr("subtitle.critical")
-          : days !== null
+          : days !== null && days >= 1
             ? tr("subtitle.stopped", { count: days })
-            : tr("subtitle.critical");
+            : tr("subtitle.stoppedNoDays");
   }
   const sum = $("summary");
   if (sum) sum.className = "summary" + (d.state === "LIVE" || atLine ? " calm" : "");
@@ -775,9 +917,37 @@ function renderSummary() {
     }
   }
 
-  // hard assertion: if there is anything to burn, we must NOT be claiming "stopped"
+  /* Hard assertions, in PAIRS. A one-directional assertion is worse than none, because it reads
+   * like the property is guarded when only half of it is.
+   *
+   * The original checked only "there IS something to burn, so we must not say stopped":
+   *     (pendingTrim > 0 || held > cap) && state !== "LIVE"
+   *
+   * Every one of the three self-contradictions this round fixed slipped through that: they were
+   * all the OPPOSITE shape — claiming a burn while nothing was burnable (atLine with held == cap,
+   * or with a few wei of excess that prints as 0.00). So the second half is asserted here:
+   * if the page describes the pool as STILL BURNING, something must actually be burnable.
+   *
+   * `pendingTrim > 0n` is the contract's own authoritative reading, so it is the right test on
+   * the other side too — but note that a positive pendingTrim smaller than the display threshold
+   * is legitimately described as "on the line" rather than "burning", which is why the check is
+   * against the printed reading and not against the state alone. */
   if ((v["hook.pendingTrim"] > 0n || d.held > d.cap) && d.state !== "LIVE") {
-    console.error("[invariant] pendingTrim > 0 but state is not LIVE", { pendingTrim: String(v["hook.pendingTrim"]), held: String(d.held), cap: String(d.cap), state: d.state });
+    console.error("[invariant] there is something to burn but state is not LIVE", {
+      pendingTrim: String(v["hook.pendingTrim"]),
+      held: String(d.held),
+      cap: String(d.cap),
+      state: d.state,
+    });
+  }
+  if (d.state === "LIVE" && d.pendingTrim === 0n && !onTheLine(d)) {
+    console.error("[invariant] state is LIVE but nothing is burnable and the pool is not on the line", {
+      pendingTrim: String(d.pendingTrim),
+      gapRaw: String(d.gapRaw),
+      held: String(d.held),
+      cap: String(d.cap),
+      state: d.state,
+    });
   }
 
   // impact
@@ -789,16 +959,63 @@ function renderSummary() {
       : drippableNow === 0n
         ? tr("s.066")
         : tr("s.067", { p0: fmt18(drippableNow, 4) });
-  if (d.state === "LIVE" || atLine) {
-    impact.push(tr("s.068"));
+  /* d.state is the only source of truth for which impact sentence prints.
+   *
+   * This read `if (d.state === "LIVE" || atLine)`, which let atLine override the state machine
+   * and pull CRITICAL and DORMANT into the LIVE branch. s.068 is present tense — "超出触发线的
+   * IMD 正在被抽走销毁" / "IMD above the line is being withdrawn and burned" — and it printed
+   * in states where nothing is being withdrawn at all:
+   *
+   *   B (held == cap, pendingTrim == 0 → CRITICAL + atLine, the live state right now):
+   *       s.068 present tense AND s.069 future tense in the same list —
+   *       "正在被抽走销毁" directly above "下一笔卖出就会触发一次销毁". One list, two tenses,
+   *       one position. They cannot both be true.
+   *   E (held == cap == floor → DORMANT, a cell derive() never documents): s.068 said a burn was
+   *       in progress while the answer block on the same screen said 现在水位在线的下面，所以没有
+   *       东西可烧 / "the level is below the line, so there is nothing to burn".
+   *   C (a few wei over → LIVE + atLine): genuinely burning, so s.068 is right here — and this is
+   *       the case the `|| atLine` was originally written to serve.
+   *
+   * So the fix keeps atLine where it belongs — selecting wording *within* LIVE — and stops it
+   * from choosing the branch. Outside LIVE, atLine is irrelevant to this list: a pool sitting on
+   * the line is not having anything withdrawn from it, whatever the state machine calls it. That
+   * is why the C case keeps working, B falls into the CRITICAL copy, and E into the DORMANT copy.
+   *
+   * Note the invariant above (l838) only ever checked the opposite direction — "has a pending
+   * trim but is not LIVE". All three cases here are "has NO pending trim yet was treated as
+   * LIVE", so the assertion could not have caught any of them. */
+  if (d.state === "LIVE") {
+    /* Three lines, as before, and s.068 only where a burn is genuinely in flight.
+     *
+     * atLine inside LIVE is the C band: over the line by a few wei, so excess is real but prints
+     * as 0.00 and there is effectively nothing to withdraw. There the present-tense s.068 is
+     * dropped for the future-tense s.069 carried in the amount slot — s.068 and s.069 must never
+     * both appear, which is exactly the B-case contradiction being fixed here. Keeping the list
+     * at three items in every state preserves the layout the rest of the section assumes. */
+    impact.push(atLine ? tr("s.069") : tr("s.068"));
     impact.push(yieldLine);
-    impact.push(
-      atLine
-        ? tr("s.069")
-        : tr("s.070", { p0: fmt18(d.pendingTrim, 4) })
-    );
+    if (!atLine) impact.push(tr("s.070", { p0: fmt18(d.pendingTrim, 4) }));
   } else if (d.state === "CRITICAL") {
-    impact.push(tr("s.071"));
+    /* CRITICAL is not one position, it is a band, and the copy has to name the right one.
+     *
+     * s.071 says "池子里的 IMD 还在触发线下面 … 此刻没有东西可烧" / "the pool's IMD is still
+     * below the line … nothing can burn right now". That is true for the whole band below the
+     * line (held < cap, which is also every `cap == floor` case) and it is the reason this arm
+     * exists. It is FALSE at the top edge of the band: the B point, held == cap, where the level
+     * is not under the line but exactly on it.
+     *
+     * That edge is not hypothetical — it is the state this site is serving as this is written.
+     * Before the fix at l877, B printed the present-tense s.068 and the mistake was a tense; with
+     * only that fix, B would land here and the mistake becomes a direction. Swapping one wrong
+     * sentence for another is not a repair, so B gets its own wording: on the line, nothing to
+     * burn yet, the next sell fires it. That is s.516's meaning, already written for the gap line,
+     * so it is reused rather than duplicated.
+     *
+     * The splitting predicate is `held === cap`, not atLine. atLine is also true at C and at
+     * cap+1 wei (states LIVE, handled above), so within this arm the two coincide — but keying on
+     * the geometric fact is what makes the sentence correct, and it keeps holding if the atLine
+     * threshold is ever retuned. */
+    impact.push(d.held === d.cap ? tr("s.516") : tr("s.071"));
     impact.push(yieldLine);
     impact.push(tr("s.072"));
   } else {
@@ -939,7 +1156,13 @@ function renderStatus() {
   const s = state.snap;
   if (!s) return;
   $("st-block").textContent = s.blockNumber.toLocaleString();
-  $("st-updated").textContent = new Date(s.fetchedAt).toLocaleTimeString();
+  /* Every other timestamp on this page is UTC: iso() appends " UTC", fmtDateTime() pins
+   * timeZone:"UTC" and appends the suffix, and the "data as of" note is UTC. This one line was
+   * the only local-time clock, and it carried no label — so a reader in UTC+8 who used it to
+   * judge "how long has the page gone without an update" could be eight hours out, in the
+   * direction that makes a frozen page look freshly updated. Same reading, same timezone label,
+   * or the comparison the reader is making is wrong. */
+  $("st-updated").textContent = iso(s.fetchedAt / 1000);
   const errCount = Object.keys(s.errors || {}).length + Object.keys((s.base && s.base.errors) || {}).length;
   const dot = $("dot-rpc");
   const label = $("st-rpc");
@@ -984,7 +1207,27 @@ function renderStaleBanner() {
 function renderRpcBanner() {
   const el = $("rpc-banner");
   if (!el) return;
-  if (state.lastError) {
+
+  /* Three different failures used to share one banner, and the banner told the worst story
+   * of the three every time.
+   *
+   *   "整体断网"        — tick()'s catch: no snapshot at all, every endpoint refused.
+   *   "部分读数失败"    — the snapshot arrived but some views are missing (snap.errors).
+   *   "某个区块渲染失败" — the data is fine and a renderer threw (renderFailures).
+   *
+   * The old text (s.119) said "读不到链上数据。所有配置的 RPC 端点都没有响应" for all three. A
+   * single view failing to decode — which happens routinely, and which lib/contracts.js has a
+   * whole retry pass for — was therefore announced as a total network outage, while the RPC
+   * was healthy and thirty other numbers on the page were correct. On a site whose stated
+   * selling point is that it does not overstate, that was the most damaging sentence it could
+   * print.
+   *
+   * Each case now names itself and its own blast radius: which view could not be read, or
+   * which section failed to draw. "读不到链上数据" is reserved for the case where there is
+   * genuinely no snapshot to draw from. */
+  const s = state.snap;
+
+  if (state.lastError && !s) {
     el.innerHTML =
       `<div class="banner danger" style="margin-top:18px"><span class="ic">✕</span><div>` +
       tr("s.119") +
@@ -992,20 +1235,44 @@ function renderRpcBanner() {
       `<div class="err" style="margin-top:6px">${esc(state.lastError)}</div></div></div>`;
     return;
   }
-  const s = state.snap;
-  if (!s) return;
-  const errs = { ...(s.errors || {}) };
-  for (const [k, v] of Object.entries((s.base && s.base.errors) || {})) errs["base." + k] = v;
+
+  const sections = [];
+  if (state.lastError && s) {
+    sections.push({ tone: "danger", ic: "✕", html: tr("s.526") + tr("s.530", { p0: esc(state.lastError) }) });
+  }
+
+  if (renderFailures.length) {
+    sections.push({
+      tone: "warn",
+      ic: "!",
+      html:
+        tr("s.527", { p0: renderFailures.length }) +
+        `<div class="tiny" style="margin-top:6px">` +
+        renderFailures.map((f) => `<code>${esc(f.name)}</code>: ${esc(f.msg)}`).join("<br>") +
+        `</div>`,
+    });
+  }
+
+  const errs = { ...((s && s.errors) || {}) };
+  for (const [k, v] of Object.entries((s && s.base && s.base.errors) || {})) errs["base." + k] = v;
   const keys = Object.keys(errs);
-  if (keys.length === 0) {
+  if (keys.length) {
+    sections.push({
+      tone: "warn",
+      ic: "!",
+      html:
+        tr("s.121", { p0: keys.length }) +
+        `<div class="tiny" style="margin-top:6px">${keys.map((k) => `<code>${esc(k)}</code>: ${esc(errs[k])}`).join("<br>")}</div>`,
+    });
+  }
+
+  if (!sections.length) {
     el.innerHTML = "";
     return;
   }
-  el.innerHTML =
-    `<div class="banner warn" style="margin-top:18px"><span class="ic">!</span><div>` +
-    tr("s.121", { p0: keys.length }) +
-    `<div class="tiny" style="margin-top:6px">${keys.map((k) => `<code>${esc(k)}</code>: ${esc(errs[k])}`).join("<br>")}</div>` +
-    `</div></div>`;
+  el.innerHTML = sections
+    .map((x) => `<div class="banner ${x.tone}" style="margin-top:18px"><span class="ic">${x.ic}</span><div>${x.html}</div></div>`)
+    .join("");
 }
 
 function renderVerdict() {
@@ -1018,14 +1285,28 @@ function renderVerdict() {
   const sinceBlocks = lastTrim ? s.blockNumber - lastTrim : null;
 
   const atLineNow = onTheLine(d);
-  // onTheLine() outranks the raw state everywhere below: a pool that is over the line by a few
-  // wei is described as sitting on it, and the badge has to say the same thing the headline does.
+  /* onTheLine() outranks the raw state: a pool over the line by a few wei is described as sitting
+   * on it, and the badge must say what the headline says.
+   *
+   * Two things at a position like E (held == cap == floor) are BOTH true — the pool is flush
+   * against the line, and derive() calls the situation DORMANT because the line has bottomed out.
+   * They are not rivals: "贴着触发线" names where the pool sits, DORMANT names what the state
+   * machine will do about it, and the card is free to say both. What must not happen is the
+   * *tone* claiming recovery, so the CSS class keeps the original author's exemption (a pool at
+   * the line only because the line bottomed out is not "live") while the wording stays the
+   * at-line wording, which is accurate. Hence two names: `atLineNow` for the wording, `recovered`
+   * for the tone. */
+  const recovered = atLineNow && d.state !== "DORMANT";
+  /* v-title and the badge text both use the at-line wording whenever the pool is at the line,
+   * including at E — same reasoning as the headline in renderSummary(). Only the CSS class keeps
+   * the author's DORMANT exemption (a pool at the line because the line bottomed out is not
+   * "live"), since tone is a judgement while the wording is a description. */
   $("v-title").textContent =
     (atLineNow
       ? tr("s.123")
       : { DORMANT: tr("s.122"), CRITICAL: tr("s.124"), LIVE: tr("s.125") }[d.state]) || tr("s.126");
   const badge = $("v-state");
-  badge.className = "badge-state " + (atLineNow && d.state !== "DORMANT" ? "live" : d.state.toLowerCase());
+  badge.className = "badge-state " + (recovered ? "live" : d.state.toLowerCase());
   badge.textContent =
     (atLineNow
       ? tr("s.128")
@@ -1036,12 +1317,36 @@ function renderVerdict() {
   const cap = v["hook.inventoryCap"];
   const pending = v["hook.pendingTrim"];
 
+  /* v-answer: three states, and it has to get the FACT right, not just the tone.
+   *
+   * Two defects here, both of the "the page states something untrue" kind rather than the
+   * "two blocks disagree" kind the other P0-3 sites had.
+   *
+   * 1. E — `held == cap == floor` is reachable, and derive() reports it as DORMANT while calling
+   *    it CRITICAL* in none of its branches. The DORMANT arm opened with s.131/s.133: "现在水位
+   *    在线的下面" / "the water level is below the line right now". At held == cap the water
+   *    level is not below the line, it is exactly ON it, and the same screen's s.139 branch
+   *    exists precisely to describe that position. So the branch is split: `held == cap` is not
+   *    "below", and must not print a sentence that says it is.
+   *
+   * 2. B — CRITICAL + atLine (held == cap, pendingTrim == 0) fell through to the `gapRaw === 0n`
+   *    arm, whose s.141 says "下一笔卖出会立刻把超出的部分烧掉" — there is no 超出 (excess) to
+   *    burn; gapRaw is 0. That arm is right for the LIVE-with-hold-back cases it was written
+   *    for, but B reaches it too, and B is the state the site is in as this is written. Threshold
+   *    it on atLineNow, which is the same predicate the lede and the badge now use.
+   *
+   * Ordering: DORMANT first (it cannot be atLine — atLine needs gapRaw === 0 and DORMANT has
+   * held < cap), then LIVE-not-atLine, then atLine, then the remaining CRITICAL arm. */
   let answer;
   if (d.state === "DORMANT") {
+    /* s.132 is the water-line metaphor and s.133 is its payoff — "the level is below the line,
+     * so there is nothing to burn". They are a pair and only make sense together, so they are
+     * selected together; s.533 is the stand-in that describes being flush against the line
+     * instead of under it. Without s.533, the E cell (held == cap == floor) printed "水位在线的
+     * 下面" about a pool whose level equals the line exactly. */
     answer =
       tr("s.131", { p0: fmt18(held, 2), p1: fmt18(cap, 0) }) +
-      tr("s.132") +
-      tr("s.133") +
+      (held === cap ? tr("s.533") : tr("s.132") + tr("s.133")) +
       (trimAge ? tr("s.134", { p0: trimAge }) : "") +
       tr("s.135", { p0: fmt18(d.floor, 0) }) +
       tr("s.136", { p0: fmt18(cap, 0) });
@@ -1049,6 +1354,27 @@ function renderVerdict() {
     answer =
       tr("s.137", { p0: fmt18(held, 2), p1: fmt18(cap, 2) }) +
       tr("s.138", { p0: fmt18(pending, 4) });
+  } else if (atLineNow) {
+    /* atLine (gapRaw === 0) from CRITICAL — this is the B state, and the state the live site was
+     * in when this was written. s.139/s.140 describe the position accurately; s.141 is the one
+     * that must go, because it promises an excess will be burned and gapRaw says there is none.
+     *
+     * s.139 asserts "正好等于触发线" / "exactly equal to its trigger line", so it may only be
+     * printed when that is literally true. atLineNow is true for a whole band, not just the equal
+     * point: `cap + 1 wei` and the C band are over the line, and their held is NOT equal to cap
+     * even though gapRaw rounds to 0. Printing s.139 there would replace one false statement
+     * about geometry with another, so the equal case is keyed on `held === cap` directly and
+     * everything else in the atLine band gets wording that does not claim equality.
+     *
+     * This arm must come before the plain `gapRaw === 0n` arm, which is the LIVE-with-carried-
+     * pending case s.141 was actually written for. */
+    answer =
+      (held === cap
+        ? tr("s.139", { p0: fmt18(held, 2), p1: fmt18(cap, 2) }) + tr("s.140")
+        : tr("s.538", { p0: fmt18(held, 2), p1: fmt18(cap, 2) })) +
+      tr("s.534") +
+      (trimAge ? tr("s.142", { p0: trimAge }) : "") +
+      tr("s.143", { p0: fmt18(d.floor, 0) });
   } else if (d.gapRaw === 0n) {
     answer =
       tr("s.139", { p0: fmt18(held, 2), p1: fmt18(cap, 2) }) +
@@ -1066,12 +1392,34 @@ function renderVerdict() {
 
   const vl = $("verdict-lede");
   if (vl) {
+    /* atLine first, for the same reason the headline and the badge put it first: the card's own
+     * title (s.123 "烧毁已恢复，贴着触发线") and the hero's atLine copy already say "recovered",
+     * so the lede underneath must not say "销毁暂时停止" — which is what s.148, the plain
+     * CRITICAL string, says. That was the whole visible symptom of P0-3 in state B: a success
+     * badge over a sentence announcing that burning had paused.
+     *
+     * But atLine is NOT one situation, and the E cell proves it. E is DORMANT with
+     * held == cap == floor: gapRaw is 0, so atLine is true, yet the line has already reached its
+     * lowest mark and cannot fall further. s.535 ("销毁随时会被下一笔卖出重新点燃" / "the next
+     * sell can relight the burn at any moment") over-promises there — a sell raises held, but the
+     * line is pinned, so the pool has to climb past cap under its own steam. s.147, the plain
+     * DORMANT string, under-describes it: the pool really is flush against the line, so "销毁已经
+     * 停止" reads as if it were far below.
+     *
+     * E therefore gets wording of its own (s.539) that says both true things at once: the pool is
+     * on the line, and relighting depends on the line being able to fall — which it cannot. That
+     * is the one position where the paragraph must not be either of the two existing strings.
+     * atLine still outranks CRITICAL and LIVE, which is what the P0-3 fix needed. */
     vl.innerHTML =
-      d.state === "DORMANT"
-        ? tr("s.147")
-        : d.state === "CRITICAL"
-          ? tr("s.148")
-          : tr("s.149");
+      atLineNow
+        ? d.state === "DORMANT"
+          ? tr("s.539")
+          : tr("s.535")
+        : d.state === "DORMANT"
+          ? tr("s.147")
+          : d.state === "CRITICAL"
+            ? tr("s.148")
+            : tr("s.149");
   }
 
   $("v-gap").textContent = d.gapRaw === 0n ? "0" : fmt18(d.gapRaw, 4);
@@ -1112,7 +1460,32 @@ function renderStates() {
   if (!s) return;
   const d = s.derived;
   const cur = d.state;
-  const atLineNow = d.gapRaw === 0n && d.pendingTrim === 0n;
+  /* onTheLine(d) — not a local restatement of it.
+   *
+   * This was the at-line test written out by hand — onTheLine() with the "prints as 0.00"
+   * layer removed. It looks like a harmless shortcut, and in the state the page spends most of
+   * its time in — exactly on the line, pendingTrim === 0 — the two agree, so it looked right
+   * forever. They part company in the narrow band where `gapRaw === 0` and
+   * `0 < pendingTrim <= 0.004999 IMD`: the pool is a few wei over the line, and
+   * pendingTrim() = floor(L*excess/held) returns a positive value that still prints as "0.00".
+   *
+   * State the direction precisely, because the intuitive telling is backwards. The copy without
+   * the threshold is NARROWER, not wider — it says false exactly where onTheLine() says true. So
+   * the damage is not an over-claim that something is burning; it is that two blocks of the same
+   * page describe one position two ways. In the C band renderVerdict() calls it "贴着触发线"
+   * and renderSummary() prints s.516, while the CRITICAL tile here reads s.159
+   * "临界 · 触发线还在降" — the tile saying the line still has room to fall about a position
+   * that is already flush against it. Each wording defends itself in isolation. Both at once is
+   * the page disagreeing with itself, and that is the one thing this dashboard cannot do.
+   *
+   * (The highlight was never misapplied: `x.id === cur` picks the tile, and the atLine term only
+   * chooses the tone *inside* the tile already selected. B, C and E all highlight the right
+   * tile. The whole defect is the one string above.)
+   *
+   * Fix it by deleting the second copy of the rule, not by retuning the copy. Every other site
+   * that needs this verdict calls the function (renderSummary, renderVerdict, the gap line).
+   * This was the last hand-rolled one. */
+  const atLineNow = onTheLine(d);
   const defs = [
     {
       id: "DORMANT",
@@ -1141,7 +1514,37 @@ function renderStates() {
       name: tr("s.166"),
       cond: tr("s.167"),
       line: tr("s.168"),
-      now: d.pendingTrim > 0n ? tr("s.169", { p0: fmt18(d.pendingTrim, 4) }) : tr("s.170"),
+      /* The "now:" line of the LIVE tile is about *this* reading, so it must not be written
+       * from a rule that ignores whether LIVE is the state we are actually in.
+       *
+       * It used to read pendingTrim > 0n ? s.169 : s.170, which means every non-LIVE state
+       * printed s.170 — "当前待烧毁量 0" / "Pending trim 0" — under a tile whose own heading
+       * says s.166 "正在烧毁" / "Burning". The page rendered as one self-contradicting line:
+       *
+       *     ○ 正在烧毁 … 当前：当前待烧毁量 0
+       *
+       * and did it in exactly the states where it is most wrong to imply a burn is in flight.
+       * Under CRITICAL the same string appeared directly beside the CRITICAL tile that was
+       * correctly saying nothing is being burned right now.
+       *
+       * The repair is not a better value, it is a different claim. The tile is a description of
+       * a branch of derive() (s.167/s.168 spell out that branch); what happened *this* reading
+       * belongs to the active tile. So: only the current state gets the live figure, and every
+       * other state gets the honest "not this branch" wording instead of a fabricated zero.
+       *
+       * A zero is a reading; "the condition is not met" is a fact about which branch we are on.
+       * Printing the first when we mean the second is the same class of error as showing a
+       * frozen snapshot number without saying it is frozen. */
+      now:
+        cur === "LIVE"
+          ? d.pendingTrim > 0n
+            ? tr("s.169", { p0: fmt18(d.pendingTrim, 4) })
+            /* LIVE by derive(), but pendingTrim === 0n: the pool is over the line yet this
+             * reading has nothing pending. Say what is true of the branch rather than a 0. */
+            : tr("s.170")
+          : atLineNow
+            ? tr("s.531", { p0: fmt18(d.pendingTrim, 4) })
+            : tr("s.532"),
       tone: "live",
     },
   ];
@@ -1205,7 +1608,13 @@ function renderTimeline() {
   const tl = $("timeline-lede");
   if (tl) {
     const trimDays = blocksToDays(s.blockNumber - lastTrim);
-    const burning = s.derived.state === "LIVE" || s.derived.gapRaw === 0n;
+    /* `gapRaw === 0n` was serving as a third, approximate definition of "burning" here — neither
+     * derive()'s state nor onTheLine(). State it in terms of the two real predicates instead:
+     * LIVE means a burn is under way, onTheLine(d) means the pool is flush against the line. The
+     * old form happened to give the right answer in B and C and the wrong one only in DORMANT
+     * (gapRaw > 0 there, so it read false while the state machine also said DORMANT — it agreed
+     * by luck). Reading the shared predicate removes the luck. */
+    const burning = s.derived.state === "LIVE" || onTheLine(s.derived);
     tl.innerHTML =
       tr("s.189") +
       (burning
@@ -1345,8 +1754,33 @@ function renderAwaiting() {
     return;
   }
 
-  // History from the pre-generated snapshot, "now" from the live call.
+  /* Two clocks on one card — say so, or the card lies by juxtaposition.
+   *
+   * `now` is the live eth_call (burnExecutor.tokenBalance, refreshed every 60s). The other five
+   * points, and therefore net24 / net7d and the "who is pushing" chip, come from
+   * data/bridge-history.json, which is rebuilt from Transfer logs on the refresh job's schedule.
+   * When that job is current the two clocks are minutes apart and nothing needs saying. When it
+   * stops — it stopped for 6.6 hours on 2026-09-24 — the card keeps reading a live balance
+   * beside a "24h net change" whose second term froze hours ago, with no visual difference.
+   *
+   * The subtraction is the part that cannot be repaired by relabelling alone, and it is worth
+   * writing down: net24 = now(live) − 24h(frozen) mixes two epochs. That is why the sub-line on
+   * each net tile carries the snapshot's own timestamp rather than the card's refresh time.
+   *
+   * The honest fix is not to fake realtime for the frozen half — the prompt for this round is
+   * explicit that labelling staleness beats manufacturing freshness. It is to attach the cutoff
+   * to the frozen figures, keep the live figure labelled as live, and say in the note which half
+   * is which. `asOf()` already exists for exactly this purpose (it names the snapshot's build
+   * time and only appears when mayNotBeLatest()).
+   *
+   * The real event the frozen series is blind to is surfaced separately below, from base.json's
+   * bridges[]/burns[] — an event ledger rather than a sample series, so it is bounded by the
+   * snapshot age too and is labelled the same way. */
   const snap = state.bridgeSnapshot;
+  /* The frozen half's cutoff. `snap` must be declared before this line — hoisting does not
+   * apply to `const`, so reading it earlier throws a ReferenceError, and renderOne() would
+   * turn that into a silently blank card rather than a loud failure. */
+  const snapAt = snap && snap.fetchedAt ? iso(Math.floor(Date.parse(snap.fetchedAt) / 1000)) : null;
   const toBig = (v) => {
     try {
       return v === null || v === undefined ? null : BigInt(v);
@@ -1387,9 +1821,25 @@ function renderAwaiting() {
       sub: tr("awaiting.currentSub"),
       srcKey: "burnExecutor.tokenBalance",
     }) +
-      statTile(tr("awaiting.net24"), net(trend && trend.net24), { small: true }) +
-      statTile(tr("awaiting.net7d"), net(trend && trend.net7d), { small: true }) +
-      statTile(tr("awaiting.whoPushes"), `<span class="chip ${chip}">${esc(label)}</span>`, { small: true })
+      /* The net tiles get the snapshot's timestamp as their sub, not the page's refresh time:
+       * these two numbers are the frozen half of the card and the only place a reader can see
+       * which moment they belong to. `awaiting.snapshotAt` reuses the existing key (it is the
+       * same sentence the note prints) rather than minting a near-duplicate. */
+      statTile(tr("awaiting.net24"), net(trend && trend.net24), {
+        small: true,
+        sub: snapAt ? tr("awaiting.frozenAsOf", { p0: snapAt }) : tr("awaiting.frozenNoTime"),
+        tone: mayNotBeLatest() ? "dim" : "",
+      }) +
+      statTile(tr("awaiting.net7d"), net(trend && trend.net7d), {
+        small: true,
+        sub: snapAt ? tr("awaiting.frozenAsOf", { p0: snapAt }) : tr("awaiting.frozenNoTime"),
+        tone: mayNotBeLatest() ? "dim" : "",
+      }) +
+      statTile(tr("awaiting.whoPushes"), `<span class="chip ${chip}">${esc(label)}</span>`, {
+        small: true,
+        sub: snapAt ? tr("awaiting.frozenAsOf", { p0: snapAt }) : tr("awaiting.frozenNoTime"),
+        tone: mayNotBeLatest() ? "dim" : "",
+      })
   );
 
   const explain =
@@ -1400,10 +1850,67 @@ function renderAwaiting() {
         : verdict === "flat"
           ? tr("awaiting.flatExplain")
           : "";
-  const provenance = snap && snap.fetchedAt ? " " + tr("awaiting.snapshotAt", { p0: iso(Math.floor(Date.parse(snap.fetchedAt) / 1000)) }) : "";
+  const provenance = snapAt ? " " + tr("awaiting.snapshotAt", { p0: snapAt }) : "";
+  /* Which moments the two halves of the net figures come from.
+   *
+   * This card mixes two clocks by design, and the mixing is not obvious from the numbers:
+   *
+   *   current  — read live, this poll      (burnExecutor.tokenBalance)
+   *   net24/7d — (the sample series' "now" slot, which is ALSO filled with the live balance)
+   *              minus (a point sampled at a fixed past block from data/bridge-history.json)
+   *
+   * So net24 is not "the change over 24h as of the snapshot" nor "as of now": it is a
+   * subtraction whose two ends belong to different moments — a real balance now, minus a
+   * sampled balance at a block tens of thousands back. That is a legitimate reading of the
+   * queue's direction, and it is the reason the "someone is pushing" chip can still be right
+   * while the series behind it is hours old. But it is NOT a same-moment difference, and a
+   * reader who assumes it is will misjudge how fresh the trend is.
+   *
+   * Rather than pick one clock and lose the other (a stale series would then read as flat, and
+   * a live-only reading would lose the trend entirely), each half is labelled with its own
+   * cutoff above: the frozen tiles carry the snapshot's timestamp, the note carries the
+   * series' own fetchedAt, and this line states the mix in words. */
+  const seriesAt = snap && snap.fetchedAt ? iso(Math.floor(Date.parse(snap.fetchedAt) / 1000)) : null;
+  const mixedClock = seriesAt ? " " + tr("awaiting.mixedClock", { p0: seriesAt }) : "";
+  /* The last real move of the second door, so the card is not blind to an event the sample
+   * series cannot contain.
+   *
+   * The 6-point series samples every 6 hours. A single 1050.49 IMD bridge-and-burn — the largest
+   * in the series' history, executed 2026-09-24 15:50 UTC — can fall between two samples, which
+   * is exactly what happened while the refresh job was down. When the queue then reads ~0, this
+   * card's "24h net change" and its "someone is pushing" chip are both computed from points that
+   * may predate the event entirely.
+   *
+   * base.json's bridges[] is an event LEDGER, not a sample series, so it holds the move itself
+   * (block + timestamp + tx). Reading the last entry costs nothing: it is already in memory as
+   * part of state.baseData, refreshed on the same cycle as the rest of the Base side. This is
+   * deliberately NOT a new eth_getLogs poll — the requirement is to stop the card from being
+   * silently wrong, and a ledger that is one Base-refresh old does that while a purpose-built
+   * log scanner would add a network path the page does not otherwise need.
+   *
+   * It is labelled with the same cutoff discipline as everything else: the timestamp shown is
+   * the event's own block time, and the "as of" is attached only when the snapshot is behind.
+   *
+   * Read from state.baseData, not s.base. Both exist and both are about Base, but they are not
+   * the same object: s.base is the Base *chain* readings attached to the current poll (address
+   * balances, chainId, blockNumber) and carries no event list. The bridges[]/burns[] ledgers come
+   * from data/base.json, which boot() loads into state.baseData and which carries its own
+   * builtAt. Taking the array off s.base would find nothing and silently drop the line. */
+  const baseLedger = state.baseData;
+  const lastBridge =
+    baseLedger && Array.isArray(baseLedger.bridges) && baseLedger.bridges.length
+      ? baseLedger.bridges[baseLedger.bridges.length - 1]
+      : null;
+  const bridgeLine =
+    lastBridge && lastBridge.t
+      ? " " + tr("awaiting.lastBridgeBurn", { p0: fmtDateTime(lastBridge.t), p1: lastBridge.b.toLocaleString() }) +
+        (baseLedger.builtAt
+          ? tr("awaiting.ledgerAsOf", { p0: iso(Math.floor(Date.parse(baseLedger.builtAt) / 1000)) })
+          : "")
+      : "";
   setHtml(
     "awaiting-note",
-    tr("awaiting.what", { amount: fmt18(bal, 2) }) + (explain ? " " + explain : "") + " " + tr("awaiting.devQuote") + provenance
+    tr("awaiting.what", { amount: fmt18(bal, 2) }) + (explain ? " " + explain : "") + bridgeLine + mixedClock + " " + tr("awaiting.devQuote") + provenance
   );
 }
 
@@ -1494,7 +2001,39 @@ function simulate(inflowWei, pricePct) {
   const s = state.snap;
   if (!s) return null;
   const p = protocolParams(s);
-  if (p.positionLiquidity === undefined || p.heldNow === undefined) return null;
+  /* Every field simulatePure() does arithmetic on must be a real BigInt before we hand it over.
+   *
+   * This guard used to test only positionLiquidity and heldNow, which is not the set the maths
+   * touches. simulatePure() also does BigInt arithmetic on capNow, capFloor, sqrtPriceX96,
+   * ratchetBps, capDecayTokensPerDay and lastCapDecayAt. When any of those comes back
+   * `undefined` — one hook view failing to read, which lib/contracts.js explicitly retries
+   * individually because partial batch failure is routine — the mixed BigInt/Number expression
+   * throws "Cannot mix BigInt and other types".
+   *
+   * Where it threw from is what made it worth its own note: protocolParams() itself does no
+   * arithmetic, so the throw came out of simulatePure(), which is called from simulate(), which
+   * is called at the top of renderSimulator() — before the `if (!r || r.error)` fallback that
+   * exists to render the graceful s.274 message. So the fallback never ran; the renderer just
+   * died, and (before renderOne) took eight later renderers with it. The fallback is exactly
+   * what this path should reach, so the fix is to make the guard test the whole field set and
+   * let s.274 do its job.
+   *
+   * nowSec is derived from Date.now(), not from the chain, so it is never undefined and is
+   * deliberately not listed. */
+  for (const field of [
+    "positionLiquidity",
+    "heldNow",
+    "capNow",
+    "capFloor",
+    "sqrtPriceX96",
+    "ratchetBps",
+    "capDecayTokensPerDay",
+    "lastCapDecayAt",
+    "minTrimTokens",
+    "rewardShareBps",
+  ]) {
+    if (typeof p[field] !== "bigint") return null;
+  }
   return simulatePure(p, { inflowWei, pricePct });
 }
 
@@ -1602,10 +2141,33 @@ function renderTrimNow() {
         sub: `${(100 - share / 100).toFixed(2)}%`,
       }) +
       statTile(tr("s.308"), fmt18(d.pendingReward, 6) + " IMD", { small: true, sub: `${(share / 100).toFixed(2)}%` }) +
-      statTile(tr("s.309"), "30%", {
+      /* This tile is a CEILING, not a reading, and it sat in a row with two readings.
+       *
+       * The two tiles to its left are computed live from the chain's 1500 bps:
+       * (100 - share/100) = 85.00% and (share/100) = 15.00%. Both describe the hook as
+       * configured right now. This tile printed the literal string "30%", which is
+       * MAX_REWARD_SHARE_BPS = 3000 — the value rewardShareBps() can never exceed. Three
+       * percentages side by side read as three facts about the current config; the third was
+       * a bound. The card's own s.310 ("销毁恒 ≥70%，owner 无法调高") is the only thing that
+       * hinted otherwise, one line down and in small print.
+       *
+       * It also had no data source at all. It carried srcKey: "hook.rewardShareBps" while
+       * printing 30%, so the tooltip pointed at the 15% view — a reader who followed it would
+       * find 1500 bps and conclude the page was broken. And baseline.json has no
+       * hook.maxRewardShareBps: lib/contracts.js does define the read
+       * (maxRewardShareBps: fn("MAX_REWARD_SHARE_BPS")), but it was never wired into collect(),
+       * and its own comment says the getter is an `internal const` that `may revert` — so it is
+       * not reliably readable and adding it to the poll would risk a permanent error entry for
+       * a constant.
+       *
+       * So: report it as what it is, label it a ceiling in words, and drop the false srcKey.
+       * A srcKey is a promise that a number came from a named view; the honest value here is
+       * no srcKey at all, plus an explicit label. Distinguishing the bound from the readings
+       * is the requirement — inventing a chain read for a constant is not. */
+      statTile(tr("s.536"), "30%", {
         small: true,
         sub: tr("s.310"),
-        srcKey: "hook.rewardShareBps",
+        tone: "dim",
       })
   );
   const tnl = $("trim-now-lede");
@@ -2532,9 +3094,14 @@ function initGroups() {
  * The message board is a plain EOA: a message is the calldata of a zero-value transfer.
  * Wallets want that calldata as hex, and hand-converting UTF-8 to hex is exactly the step
  * that stops people. Nothing here leaves the page.
+ *
+ * The no-op default and the real implementation are declared near the top of the module (see
+ * "hex helper handle"), not here. boot() calls hexRender() as soon as the locale files load,
+ * and boot() runs long before this function would ever be reached: a `let` down here is still
+ * in its temporal dead zone at that moment, so calling it from boot() threw
+ * "Cannot access 'hexRender' before initialization" — replacing a wrong string with a blank
+ * page, which is not a fix.
  * ------------------------------------------------------------------ */
-
-let hexRender = () => {};
 
 function initHexTool() {
   const input = $("hex-input");
@@ -2594,7 +3161,11 @@ function initHexTool() {
       }, 1800);
     });
   }
-  hexRender();
+  /* NO hexRender() here. init() is synchronous and runs before boot() has awaited the locale
+   * files, so calling it here rendered the literal key "s.513" whenever #hex-input already had
+   * content — which the browser supplies on a soft refresh, a back navigation, or a form
+   * restore, not just if the reader typed something. See boot(), which calls it once the
+   * dictionary is loaded, and onLangChange(), which redoes it when the language changes. */
 }
 
 function init() {
