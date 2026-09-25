@@ -6,6 +6,7 @@ import { writeFileSync, readFileSync, mkdirSync } from "node:fs";
 import { Rpc, encodeCall, decodeReturns, fmt18, fmtUnits, keccak256Hex, utf8ToBytes } from "../lib/evm.js";
 import { ADDR, POOL_IDS } from "../lib/contracts.js";
 import { scanLogWindows } from "../lib/log-scan.js";
+import { scanBaseBurns, findDeployBlock, resumeFrom, nextScannedTo } from "../lib/base-log-scan.js";
 import { outPath, stagedPath } from "../lib/snapshot-out.js";
 
 const DATA = new URL("../data/", import.meta.url);
@@ -63,6 +64,28 @@ async function l1BlockTimes(blockList) {
 const BASE_IMD_ADAPTER = "0xab152db8aac047b6757ffcf495ffe88d7712690a";
 const BASE_FP = "0xff0c532fdb8cd566ae169c1cb157ff2bdc83e105";
 const BASE_BURN_RECEIVER = "0xf9d7cbf5bef2f5c9ba93a70f31ddca6457716793";
+
+/**
+ * The published base.json, for the incremental burn scan's watermarks.
+ *
+ * Read from the shipped copy (`data/base.json`), not from staging: the watermarks describe what
+ * the READER currently has, and staging holds only this run's Base half. A missing, absent or
+ * older file is not an error — it simply means a cold start (files written before `scannedTo`
+ * existed have no cursor, which is exactly the intended fallback).
+ *
+ * Returns empty watermarks on any problem, which sends the scan back to the deploy block. That
+ * is the safe direction: re-reading is merely slow, whereas resuming from a bogus watermark
+ * skips windows permanently and invisibly.
+ */
+function prevBaseJson() {
+  try {
+    const j = JSON.parse(readFileSync(new URL("../data/base.json", import.meta.url), "utf8").replace(/^\uFEFF/, ""));
+    const burns = Array.isArray(j.burns) ? j.burns.filter((b) => Number.isFinite(b && b.b)) : [];
+    return { burns, scannedTo: Number.isFinite(j.scannedTo) ? j.scannedTo : null };
+  } catch {
+    return { burns: [], scannedTo: null };
+  }
+}
 
 /* ------------------------------------------------------------------ *
  * 1. timeline: trims + milestone events, with real timestamps
@@ -198,14 +221,13 @@ console.log(`  wrote data/timeline.json (${(JSON.stringify(timeline).length / 10
 /* ------------------------------------------------------------------ *
  * 2. base side: the second door
  *
- * `--skip-base` skips this section entirely. base.blockscout.com is unreachable from
- * some networks (it times out under node while the same URL answers from PowerShell on
- * the same machine), and a refresh that publishes a fresh timeline.json is still worth
- * more than no refresh at all. The previously built base.json stays in place, and the
- * page raises its staleness banner if the gap passes three hours.
+ * `--skip-base` skips this section entirely. It exists for local runs on networks that cannot
+ * reach the Base RPC; the refresh job does NOT skip it, because a gap in CI should be visible
+ * rather than silently tolerated.
  *
- * The refresh job does NOT skip this by default — on GitHub's runners the endpoint is
- * reachable, and a gap there should be visible rather than silently tolerated.
+ * This section no longer talks to base.blockscout.com at all. It reads BurnExecuted logs from a
+ * Base RPC via lib/base-log-scan.js, so the external HTTP dependency that could fail without
+ * the page being able to tell is gone.
  * ------------------------------------------------------------------ */
 /**
  * What the Base section wants to say afterwards, in one object.
@@ -217,23 +239,10 @@ console.log(`  wrote data/timeline.json (${(JSON.stringify(timeline).length / 10
  * machine under node), which made the whole block, including the failing line, unreachable.
  * Publishing a result instead of reaching for the internals removes the trap.
  */
-/**
- * Base fetches start the error approach: bounded attempts, then success or a throw.
- *
- * Without it, one stalled Blockscout connection has no ceiling at all — `fetch()` alone can
- * hand back a socket that never answers, and the section would hang forever instead of
- * reaching the try/catch below.
- */
-async function fetchJson(url, timeoutMs = 30_000) {
-  const ac = new AbortController();
-  const timer = setTimeout(() => ac.abort(), timeoutMs);
-  try {
-    const r = await fetch(url, { headers: { accept: "application/json" }, signal: ac.signal });
-    return await r.json();
-  } finally {
-    clearTimeout(timer);
-  }
-}
+/* The `fetchJson()` helper that used to sit here existed only to bound Blockscout connections.
+ * The Base half now talks to a Base RPC through the shared Rpc client, which has its own
+ * timeout, so the helper had no callers left and was removed rather than left as a trap for the
+ * next reader wondering what still used it. */
 
 let baseSummary = null;
 if (!SKIP_BASE) {
@@ -247,31 +256,84 @@ try {
  * it. Neither variable is set by the refresh job or the workflow.
  */
 if (process.env.POOL4_BASE_FAIL === "1") throw new Error("POOL4_BASE_FAIL=1 — deliberate Base failure (fault injection)");
-const bs = async (address, topic0, extra = "") => {
-  if (fixture) return fixture.baseLogs || [];
-  const url = `https://base.blockscout.com/api?module=logs&action=getLogs&fromBlock=1&toBlock=latest&address=${address}${topic0 ? "&topic0=" + topic0 : ""}${extra}`;
-  let lastMessage = "no response";
-  for (let i = 0; i < 4; i++) {
-    const j = await fetchJson(url);
-    if (j.status === "1") return j.result;
-    /* "No logs found" is a real answer — an address that has emitted nothing. Anything else,
-     * after four attempts, is a failure, and `return []` for it would publish an empty burn
-     * list that is indistinguishable from a chain with no burns. verify-snapshots.mjs would
-     * catch it as "burn count did not shrink", which reads like history rather than an
-     * outage — the same confusion as the L1 scan above (HANDOFF #17). */
-    if (j.message === "No logs found") return [];
-    lastMessage = `${j.message || "unexpected response"}${j.result ? " — " + String(j.result).slice(0, 80) : ""}`;
-    await sleep(3000 * (i + 1));
-  }
-  throw new Error(`Blockscout never answered for ${address}: ${lastMessage}`);
-};
 
 // BaseBurnReceiver (verified on Base, solc 0.8.26) emits:
 //   event BurnExecuted(address indexed caller, address indexed token);
 //   function burn() { IBaseBurnableToken(token).burn(balanceOf(address(this))); emit BurnExecuted(msg.sender, token); }
 // Note it carries NO amount — the amount only shows up as a falling totalSupply.
-const BURN_TOPIC = keccak256Hex(utf8ToBytes("BurnExecuted(address,address)"));
-const burns = await bs(BASE_BURN_RECEIVER, BURN_TOPIC);
+//
+// The burns come straight from a Base RPC, not from base.blockscout.com.
+//
+// The Blockscout v1 endpoint used to answer this in one request
+// (`?module=logs&action=getLogs&fromBlock=1&toBlock=latest`). When that host stopped answering,
+// the Base half failed, and because a missing Base half means "keep the previous base.json",
+// the page's Base section silently froze — one more upstream the page depended on and could not
+// see failing, which is the same shape as the messages outage.
+//
+// What replaces it: lib/base-log-scan.js, which tiles the range into 2,000-block getLogs windows
+// (the public cap — measured on mainnet.base.org, base-rpc.publicnode.com and base.drpc.org) and
+// starts at the contract's deploy block rather than block 1, found by eth_getCode binary search.
+// Verified end-to-end against the committed snapshot before taking over: 54 burns found, 54
+// already present, zero differences in either direction.
+const baseScanRpc = new Rpc(
+  (process.env.POOL4_BASE_RPC_URLS || "https://mainnet.base.org,https://base-rpc.publicnode.com").split(",").filter(Boolean),
+  { timeoutMs: 25000 }
+);
+const baseCall = (method, params) => baseScanRpc.call(method, params);
+
+let burns;
+let baseScannedTo = null;
+if (fixture) {
+  burns = fixture.baseLogs || [];
+} else {
+  const baseHead = Number(await baseCall("eth_blockNumber", []));
+  const deployBlock = await findDeployBlock(baseCall, BASE_BURN_RECEIVER, { low: 1, high: baseHead });
+  if (deployBlock === null) {
+    /* Never emit an empty burn list for a wrong address — that is indistinguishable from a
+     * chain with no burns, and verify-snapshots would read it as history rather than an error. */
+    throw new Error(`no code at ${BASE_BURN_RECEIVER} on Base — wrong address? refusing to publish an empty burn list`);
+  }
+
+  /* `scannedTo` and the newest burn are different things, and the resume point is the lower of
+   * the two. See lib/base-log-scan.js for why taking only the newest burn would silently skip
+   * windows after a partial scan. */
+  const previous = prevBaseJson();
+  const newestPreviousBurn = previous.burns.length ? Math.max(...previous.burns.map((b) => b.b)) : null;
+  const resume = resumeFrom({ scannedTo: previous.scannedTo, lastBurnBlock: newestPreviousBurn, deployBlock });
+  console.log(
+    previous.scannedTo
+      ? `  resuming from ${resume} (watermark ${previous.scannedTo}, newest burn ${newestPreviousBurn ?? "none"}, deploy ${deployBlock})`
+      : `  cold start from deploy block ${deployBlock}`
+  );
+
+  const scan = await scanBaseBurns({ call: baseCall, from: resume, to: baseHead, log: (m) => console.log(`  ${m}`) });
+  /* A partial scan must NOT advance the watermark: the windows it failed on are exactly what the
+   * retry margin exists to re-cover, and advancing past them turns a transient failure into
+   * permanently missing history — which looks like a chain with fewer burns. */
+  baseScannedTo = nextScannedTo({ previous: previous.scannedTo, to: baseHead, covered: scan.covered });
+  if (!scan.covered) {
+    console.log(`  ⚠ ${scan.failures.length} window(s) never answered — watermark held at ${baseScannedTo}`);
+  }
+
+  /* Keep the burns from before the resume point: this scan only re-read the tail. Rebuilt into
+   * the same log shape (`blockNumber`/`topics`/`transactionHash`) the published mapping below
+   * expects, so that mapping stays untouched and both sources agree byte for byte. */
+  const seen = new Map();
+  for (const b of previous.burns) {
+    if (b.b >= resume) continue;
+    seen.set(b.b, {
+      blockNumber: hx(b.b),
+      transactionHash: b.tx,
+      topics: [null, "0x" + String(b.caller || "").replace(/^0x/, "").padStart(64, "0")],
+      __t: b.t,
+    });
+  }
+  for (const l of scan.logs) {
+    seen.set(parseInt(l.blockNumber, 16), { blockNumber: l.blockNumber, transactionHash: l.transactionHash, topics: l.topics, __t: null });
+  }
+  burns = [...seen.values()].sort((a, b) => parseInt(a.blockNumber, 16) - parseInt(b.blockNumber, 16));
+}
+
 console.log(`  Base BurnExecuted() events: ${burns.length}`);
 const burnBlocks = [...new Set(burns.map((b) => parseInt(b.blockNumber, 16)))].sort((a, b) => a - b);
 // Blockscout returns timeStamp inline; only fall back to RPC if it is missing.
@@ -279,6 +341,9 @@ const baseTs = {};
 for (const l of burns) {
   const b = parseInt(l.blockNumber, 16);
   if (l.timeStamp) baseTs[b] = parseInt(l.timeStamp, 16);
+  /* Burns carried over from the previous file keep their already-resolved time; re-asking for
+   * them would spend one RPC per burn to re-learn something already known. */
+  if (l.__t) baseTs[b] = l.__t;
 }
 const missing = burnBlocks.filter((b) => baseTs[b] === undefined);
 if (missing.length && fixture) {
@@ -361,6 +426,14 @@ const baseState = {
 const baseJson = {
   builtAt: new Date().toISOString(),
   state: baseState,
+  /* How far the burn scan has got, which is NOT the same as the newest burn.
+   *
+   * The average gap between burns is ~107,000 blocks, so `burns` can trail `scannedTo` by a lot;
+   * and if a scan fails partway, the newest burn is AHEAD of the true progress. Resuming from the
+   * burn in that case skips every window in between, permanently and invisibly. So the cursor is
+   * published separately, only advances when every window answered, and the resume point is
+   * min(scannedTo, newest burn) - margin. See lib/base-log-scan.js. */
+  scannedTo: baseScannedTo,
   burnReceiverSource: "verified on Base, solc 0.8.26 — event BurnExecuted(address indexed caller, address indexed token), no amount",
   burns: burns
     .map((b) => ({
