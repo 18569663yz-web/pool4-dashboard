@@ -1,6 +1,7 @@
 {
   "address": "0x200E710aCAA6A93bbc77146026328C40F1d60fB1",
-  "fetchedAt": "2026-09-24T19:11:13.998Z",
+  "fetchedAt": "2026-09-25T07:04:41.293Z",
+  "scannedTo": 26049978,
   "devAddresses": [
     "0x200e710acaa6a93bbc77146026328c40f1d60fb1",
     "0x047f606fd5b2baa5f5c6c4ab8958e45cb6b054b7"
@@ -19,8 +20,8 @@
       "block": 26038179,
       "ts": 1790142311,
       "tx": "0x495d379b693af5568171307945e9c66ff08b233203f1d28294babb3ff9cb4f15",
-      "from": "0x200E710aCAA6A93bbc77146026328C40F1d60fB1",
-      "to": "0x200E710aCAA6A93bbc77146026328C40F1d60fB1",
+      "from": "0x200e710acaa6a93bbc77146026328c40f1d60fb1",
+      "to": "0x200e710acaa6a93bbc77146026328c40f1d60fb1",
       "selfSend": true,
       "isDev": true,
       "important": "宣布已改设置、恢复烧毁，并发放奖励（解释了链上那次翻转）",
