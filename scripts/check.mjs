@@ -103,6 +103,58 @@ ok("NOTES.md exists", existsSync(ROOT + "NOTES.md"));
 ok("README.md exists", existsSync(ROOT + "README.md"));
 
 /* ------------------------------------------------------------------ *
+ * regression guard: every event type the page RENDERS must have its block
+ * timestamp resolved by the build
+ *
+ * This is the fourth instance this round of the same shape: a guard that exists
+ * but does not guard. The build resolves `blockTime` for a hand-written list of
+ * event types (build-data.mjs's LAST_RENDERED_TYPES), while renderTimeline()
+ * renders a DIFFERENT hand-written list (its `rows`). Nothing tied the two
+ * together, and they had already drifted: CapRatcheted and Rebalanced were
+ * rendered but never queried, so their rows printed "— · — (— days ago)" for
+ * every reader. Fixing the lists fixes today's data; this assertion is what
+ * stops the NEXT new event type from silently reintroducing it.
+ *
+ * A static check cannot prove the timestamps resolve (that needs the chain), but
+ * it can prove the two lists agree — which is the actual failure mode.
+ * ------------------------------------------------------------------ */
+try {
+  const app = readFileSync(ROOT + "assets/app.js", "utf8");
+  const build = readFileSync(ROOT + "scripts/build-data.mjs", "utf8");
+
+  /* The types renderTimeline() prints, read from its own `rows` table. */
+  const rowsBlock = app.match(/function renderTimeline\(\)[\s\S]*?const rows = \[([\s\S]*?)\];/);
+  const rendered = rowsBlock ? [...rowsBlock[1].matchAll(/\[\s*"([A-Za-z]+)"/g)].map((m) => m[1]) : [];
+
+  /* The types the build resolves a newest block for. */
+  const listBlock = build.match(/const LAST_RENDERED_TYPES = \[([\s\S]*?)\];/);
+  const resolved = listBlock ? [...listBlock[1].matchAll(/"([A-Za-z]+)"/g)].map((m) => m[1]) : [];
+
+  ok("renderTimeline()'s event list was found", rendered.length > 0, `${rendered.length} types parsed out of assets/app.js`);
+  ok("build-data.mjs's timestamp list was found", resolved.length > 0, `${resolved.length} types parsed out of scripts/build-data.mjs`);
+
+  const missing = rendered.filter((t) => !resolved.includes(t));
+  ok(
+    `every event type the page renders has its block time resolved (${rendered.length} rendered / ${resolved.length} resolved)`,
+    missing.length === 0,
+    missing.length
+      ? `${missing.join(", ")} — rendered by renderTimeline() but absent from LAST_RENDERED_TYPES, so their rows will print "— · — (— days ago)". Add them to scripts/build-data.mjs.`
+      : ""
+  );
+
+  /* The other direction is a cost question, not a correctness one, but an orphaned entry means
+   * someone added a type to the build and forgot the renderer — worth knowing. */
+  const orphaned = resolved.filter((t) => !rendered.includes(t));
+  ok(
+    "the build does not resolve timestamps for types nothing renders",
+    orphaned.length === 0,
+    orphaned.length ? `${orphaned.join(", ")} — resolved but never rendered; either wire them up or drop them from LAST_RENDERED_TYPES` : ""
+  );
+} catch (e) {
+  ok("the render/build event-type lists could be compared", false, e.message);
+}
+
+/* ------------------------------------------------------------------ *
  * regression guard: no Chinese in app.js string literals
  *
  * Every user-facing string lives in locales/*.json now. If someone hard-codes a

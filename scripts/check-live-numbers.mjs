@@ -17,6 +17,10 @@ import { readFileSync } from "node:fs";
 import { fileURLToPath } from "node:url";
 import { Rpc, fmt18, DEFAULT_RPCS } from "../lib/evm.js";
 import { collect, ADDR } from "../lib/contracts.js";
+/* The page's own timestamp reader, not a second parser. Two readers of the same field is how a
+ * "milliseconds vs seconds" disagreement becomes possible — which is exactly the bug that was
+ * fixed in this function, and it would silently return on the two sides of a duplicate. */
+import { snapshotTimestamp } from "../lib/snapshots.js";
 
 const ROOT = fileURLToPath(new URL("..", import.meta.url));
 const argOf = (name, fallback) => {
@@ -207,6 +211,88 @@ if (base) {
   }
 } else {
   ok("data/base.json exists", false);
+}
+
+/* ------------------------------------------------------------------ *
+ * 4b. freshness of EVERY snapshot the page reads
+ *
+ * This section exists because two of the six snapshots had no freshness check anywhere, and the
+ * consequence was measured rather than imagined: on 2026-09-25 the refresh job failed at
+ * fetch-messages.mjs for nine hours. timeline and baseline were covered here; messages, bridge
+ * and volume were not covered by any assertion in any suite. Nothing went red. The page kept
+ * rendering week-old history that still looked like data.
+ *
+ * The gap matters most for the steps that are about to become OPTIONAL in refresh-snapshots.mjs:
+ * an optional step that fails no longer fails the build, so if nothing else checks its output,
+ * "optional" quietly becomes "never fixed". This is the other half of that change — refresh
+ * produces, this asserts that what it produced is current.
+ *
+ * The threshold is the same three hours the page itself uses (STALE_AFTER_HOURS), deliberately:
+ * the CI check and the reader's banner should agree about what "stale" means, or one of them is
+ * lying about the other.
+ * ------------------------------------------------------------------ */
+console.log("\nfreshness of every snapshot the page reads");
+{
+  const STALE_AFTER_HOURS = 3;
+  /* Exactly the six the page fetches in boot(), plus baseline.json which the same job commits.
+   *
+   * messages.zh.json is deliberately NOT here, and the reason is worth stating because the naive
+   * move is to add it. It is a hand-maintained translation table keyed by block number
+   * (data/messages.zh.json, `_note`), not a generated artefact: no script writes it, so there is
+   * no refresh step that can stop, and stamping it with a build time would create a field that
+   * only a human editing the file could ever update — a timestamp whose age measures nothing.
+   *
+   * Its real staleness question is different and is already covered elsewhere: it is only as
+   * complete as the message set it was written against, which scripts/check-summaries.mjs checks
+   * by comparing its keys to messages.json. A count-of-entries check answers "are the translations
+   * behind the data?"; a file-age check would not. */
+  const SOURCES = [
+    ["timeline.json", "timeline"],
+    ["base.json", "base"],
+    ["volume.json", "volume"],
+    ["messages.json", "messages"],
+    ["bridge-history.json", "bridge-history"],
+    ["baseline.json", "baseline"],
+  ];
+
+  const ages = [];
+  for (const [file, name] of SOURCES) {
+    const j = load(file);
+    if (!j) {
+      ok(`data/${file} exists`, false);
+      continue;
+    }
+    const at = snapshotTimestamp(j);
+    if (at === null) {
+      /* A source with no readable timestamp is its own failure, not a skip: the banner cannot
+       * speak for it, so nothing on the page can tell the reader it has stopped. */
+      ok(`data/${file} carries a timestamp the freshness check can read`, false, `no readable builtAt/scannedAt/fetchedAt/generatedAt — this file's staleness is invisible to the page AND to this script`);
+      continue;
+    }
+    ages.push({ file, name, at, ageHours: (Date.now() - at) / 3_600_000 });
+  }
+
+  for (const a of ages.sort((x, y) => y.ageHours - x.ageHours)) {
+    console.log(`  ${a.name.padEnd(16)} ${new Date(a.at).toISOString()}  ${a.ageHours.toFixed(2)}h${a.ageHours > STALE_AFTER_HOURS ? "   <-- STALE" : ""}`);
+  }
+
+  /* One assertion per source, named, so a failure says WHICH file stopped rather than "something
+   * is old". A caller reading a CI log needs the file name, not a count. */
+  for (const a of ages) {
+    ok(
+      `data/${a.file} was refreshed within ${STALE_AFTER_HOURS}h (age ${a.ageHours.toFixed(2)}h)`,
+      a.ageHours < STALE_AFTER_HOURS,
+      `${a.file} is ${a.ageHours.toFixed(2)}h old — that step of the refresh job has stopped producing. If it is an optional step, its output keeps the previous contents and only this check will notice.`
+    );
+  }
+
+  /* The summary the banner is built from, asserted the same way the page computes it: a partial
+   * outage is the shape that hides, because a fresh majority makes the page look trustworthy. */
+  const staleNames = ages.filter((a) => a.ageHours > STALE_AFTER_HOURS).map((a) => a.name);
+  console.log(`\n  ${staleNames.length} of ${ages.length} snapshots are past the ${STALE_AFTER_HOURS}h threshold${staleNames.length ? ": " + staleNames.join(", ") : ""}`);
+  if (staleNames.length) {
+    console.log(`  (a PARTIAL stall: ${ages.length - staleNames.length} source(s) are still current, which is exactly why the page can look healthy)`);
+  }
 }
 
 /* ------------------------------------------------------------------ *

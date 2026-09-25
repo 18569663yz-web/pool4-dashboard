@@ -92,12 +92,61 @@ const settles = hist.events.BackstopSettled.logs.map((l) => {
 const wanted = new Set();
 for (const t of trims) wanted.add(t.b);
 for (const s of settles) wanted.add(s.b);
-for (const name of ["MarketOpened", "CapFloorUpdated", "CapDecayUpdated", "FeesWithdrawn", "ClaimsSettled", "FeeCollected", "DeploymentFloorUpdated"]) {
+/* EVERY block of a milestone type, not just its first and last.
+ *
+ * These blocks feed two different consumers with different shapes, and the mismatch is what
+ * produced `"t": null` in timeline.json:
+ *
+ *   - `wanted` (below) was built from the ENDPOINTS of each type, on the assumption that only
+ *     the first and last occurrence are ever displayed.
+ *   - `milestones` (:108-118) iterates EVERY log of the type and renders each one, taking its
+ *     timestamp from `ts[m.b]` (:132).
+ *
+ * So an event in the middle of a type was rendered but never queried, `ts[b]` came back
+ * undefined, and `|| null` recorded it as if the chain had no timestamp for that block. It did:
+ * blocks 25892082 / 25950882 / 25972798 all resolve fine — the build simply never asked. The
+ * bug is invisible in the endpoint types and reappears whenever a new interior event lands, so
+ * it recurred on every CI run.
+ *
+ * Cost is bounded by the milestone types, which are small (11 logs across all four). The types
+ * with thousands of logs (DeploymentFloorUpdated 3275, CapRatcheted 1989, FeeCollected 4491) are
+ * not rendered as milestones, so they stay on the endpoint-only path — adding every log of every
+ * type would take this from 11 blocks to ~11k for no benefit. The two lists below are
+ * deliberately different: endpoints for the types we only ever show the ends of, and the full
+ * log set for the types we render in full. */
+const MILESTONE_TYPES = ["MarketOpened", "CapFloorUpdated", "CapDecayUpdated", "FeesWithdrawn"];
+const MILESTONE_ALL_TYPES = ["ClaimsSettled", "FeeCollected", "DeploymentFloorUpdated"];
+const addAllLogs = (name) => {
   const ls = hist.events[name] && hist.events[name].logs;
-  if (ls && ls.length) {
-    wanted.add(parseInt(ls[0].blockNumber, 16));
-    wanted.add(parseInt(ls[ls.length - 1].blockNumber, 16));
-  }
+  if (!ls) return;
+  for (const l of ls) wanted.add(parseInt(l.blockNumber, 16));
+};
+const addEndpointLogs = (name) => {
+  const ls = hist.events[name] && hist.events[name].logs;
+  if (!ls || !ls.length) return;
+  wanted.add(parseInt(ls[0].blockNumber, 16));
+  wanted.add(parseInt(ls[ls.length - 1].blockNumber, 16));
+};
+for (const name of MILESTONE_TYPES) addAllLogs(name);
+for (const name of MILESTONE_ALL_TYPES) addEndpointLogs(name);
+/* `timeline.last[...]` is a third consumer of `ts`, and it was the one still uncovered.
+ *
+ * renderTimeline() renders `t.last[name]` for nine event types, but the lists above cover only
+ * seven of them — CapRatcheted and Rebalanced appear in neither. So `last.CapRatcheted` pointed
+ * at a block the build never queried and its row rendered as "— · —（— 天前）". This is the same
+ * bug as the milestones, one consumer further along; it surfaced live during verification
+ * (block 26049191) rather than being found by reading.
+ *
+ * Resolving only `t.last[name]` — one block per type, not every log — is what makes this
+ * affordable: 3275 and 1989-log types would be thousands of RPC calls otherwise, and only their
+ * newest occurrence is ever displayed. */
+const LAST_RENDERED_TYPES = [
+  "MarketOpened", "Trimmed", "CapRatcheted", "BackstopSettled", "Rebalanced",
+  "ClaimsSettled", "FeesWithdrawn", "FeeCollected", "DeploymentFloorUpdated",
+];
+for (const name of LAST_RENDERED_TYPES) {
+  const ls = hist.events[name] && hist.events[name].logs;
+  if (ls && ls.length) wanted.add(parseInt(ls[ls.length - 1].blockNumber, 16));
 }
 const blocks = [...wanted].sort((a, b) => a - b);
 console.log(`  resolving ${blocks.length} block timestamps…`);

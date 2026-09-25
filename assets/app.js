@@ -9,7 +9,8 @@ import { Rpc, DEFAULT_RPCS, fmt18, fmtUnits } from "../lib/evm.js";
 import { collect, ADDR, BASE, OWNER_POWERS, OWNER_CONTRACTS, SOURCES, POOL_IDS, POOLS, WATCHED, readBridgeTrend } from "../lib/contracts.js";
 import { simulate as simulatePure, simulateHorizon, imdToWei } from "../lib/simulate.js";
 import { initI18n, setLang, getLang, t as tr, has as hasKey, onLangChange, applyStatic, applyDocumentLang, fmtDateTime, fmtIdentifier } from "../lib/i18n.js";
-import { oldestSnapshot } from "../lib/snapshots.js";
+import { oldestSnapshot, snapshotAges } from "../lib/snapshots.js";
+import { startMessageFollower, FIRST_WINDOW } from "../lib/messages-follow.js";
 
 /* ------------------------------------------------------------------ *
  * config
@@ -35,6 +36,17 @@ const state = {
   volume: null,
   messages: null,
   messagesZh: null,
+  /* The live-merged view of the message board: the snapshot's history plus whatever the follower has
+   * read from the chain this session. null until the follower publishes its first result, and the
+   * renderer falls back to the plain snapshot when it is null — so the section works whether or not
+   * the live read ever succeeds. See lib/messages-follow.js. */
+  messagesLive: null,
+  /** The follower's own status: {phase: "idle"|"live"|"error"|"stopped", liveCount, lastSeen, …}. */
+  messagesStatus: null,
+  /** The follower's freshness reading: which source the newest message came from, live head, etc. */
+  messagesLiveFresh: null,
+  /** Handle to the running follower, so a fixture session can stop it. */
+  messagesFollower: null,
   msgFilter: "all",
   /** The message list is 70+ entries long; "证据" is unreadable if all of them are open. */
   msgShowAll: false,
@@ -155,11 +167,37 @@ const ago = (tsSec) => {
  * "is the data stale" question and this line's "is this burn the latest one" question are not
  * the same question, and only the second one is about this sentence.
  *
- * So the qualifier appears when EITHER the snapshot is past its threshold OR the chain has
+ * So the qualifier appears when EITHER the TIMELINE is past its threshold OR the chain has
  * burned since the snapshot was built. The second condition is what the 90-minute guard in
  * scripts/check-last-trim.mjs watches for, one level up.
- */
-const snapshotExpired = () => state.snapshotAgeHours !== null && state.snapshotAgeHours > STALE_AFTER_HOURS;
+ *
+ * WHICH source decides the first condition is not a detail — it was wrong, and measurably so.
+ * This used to read `state.snapshotAgeHours`, which renderStaleBanner() sets to the age of the
+ * OLDEST of the five monitored sources. That is the right number for the banner, whose job is to
+ * warn about the worst of them, and the wrong number here, because this question is about ONE
+ * source: burns live in timeline.json, so if the timeline is current, "last burned X ago" is a
+ * complete statement no matter how old the message or pool snapshots are.
+ *
+ * Measured on 2026-09-25, which is the shape the refresh job produces whenever one step fails:
+ *
+ *     timeline      0.1h  (fresh — the burn data)
+ *     base          9.5h
+ *     messages      9.5h
+ *     → oldest source = base @ 9.5h → this condition was true
+ *     → "last burned 12 分钟前" was printed as "12 分钟前或更近", which was false:
+ *       the timeline was current, so the burn time WAS the latest one.
+ *
+ * So it reads the timeline's own age. Note this is deliberately NOT the same predicate the banner
+ * uses — reporting coverage and judging one sentence's reliability are different questions, and
+ * sharing a scalar between them is what produced the false qualifier. */
+const timelineAgeHours = () => {
+  const built = state.timeline && state.timeline.builtAt ? Date.parse(state.timeline.builtAt) : NaN;
+  return Number.isFinite(built) ? (Date.now() - built) / 3_600_000 : null;
+};
+const snapshotExpired = () => {
+  const age = timelineAgeHours();
+  return age !== null && age > STALE_AFTER_HOURS;
+};
 /** Has the chain produced a trim the snapshot does not contain? Read from the live block. */
 const snapshotBehindChain = () =>
   state.timeline && state.timeline.last && state.snap
@@ -293,6 +331,62 @@ async function boot() {
    * in test-render.mjs fails at zero characters — silently, since no exception is raised. */
   await tick();
   setInterval(tick, 1000);
+
+  /* ---- live message board ----
+   *
+   * Started HERE, after the first paint, and deliberately NOT awaited.
+   *
+   * The board used to come only from data/messages.json, which a GitHub workflow refreshes once an
+   * hour — so a message posted while someone was looking at the page did not appear for up to an
+   * hour, and never appeared at all if that workflow failed. The defect was never in the renderer:
+   * the renderer was faithfully drawing a file that was hours upstream of stale.
+   *
+   * It cannot sit on the boot path. The first live read walks 300 blocks in 3 batched requests, which
+   * against the public fleet measures seconds (9–20s), not milliseconds. Awaiting it would hold the
+   * whole page — headline, verdict, every number — on a blank screen, waiting on a request that
+   * usually finds nothing, because this board averages 0.55 messages a day and has been silent for
+   * as long as 51 days. So the page paints from the snapshot exactly as before, and the live read
+   * lands afterwards and merges in.
+   *
+   * That ordering also decides the failure semantics, and they are the right ones: if the chain is
+   * unreachable the reader still has the complete snapshot, and the only thing lost is the label
+   * beside it. Which is why the follower reports its own state rather than throwing — nothing here
+   * may stop the page from finishing boot.
+   *
+   * Fixture sessions skip this entirely, like the ticker above: scripts/test-render.mjs drives the
+   * renderers with a synthetic snapshot and must not have a background network read mutate the
+   * message section underneath its assertions. */
+  if (!globalThis.__POOL4_FIXTURE__) {
+    /* Exposed for the e2e harness (scripts/verify-messages-e2e.mjs): the follower's own status is the
+     * only way a test can ask "did the background read run at all?" without inferring it from rendered
+     * text, and there is no other channel out of this module-scoped closure. Harmless in production —
+     * one property on globalThis, read by nothing else. */
+    globalThis.__POOL4_MSG = state;
+    state.messagesFollower = startMessageFollower({
+      state,
+      onUpdate: ({ status, freshness }) => {
+        state.messagesStatus = status;
+        /* The freshness object is what makes the source label possible: it carries which source the
+         * newest on-screen message came from, the block the live read reached, and the snapshot's own
+         * build time. Kept on state so renderMessages() can read it without recomputing. */
+        state.messagesLiveFresh = freshness;
+        /* Re-render only the message section. renderAll() would re-run every renderer on the page,
+         * and this callback fires every 30 seconds — most of the time with nothing new — so
+         * re-rendering 20 unrelated sections each time is pure waste and a chance for an unrelated
+         * renderer to flicker. */
+        try {
+          renderMessages();
+          renderStaleBanner();
+        } catch (e) {
+          /* Swallowed deliberately, and this is the one place in the file where that is defensible:
+           * this callback runs on a timer OUTSIDE renderAll()'s per-renderer guard, so a throw here
+           * would escape as an unhandled rejection instead of being recorded by renderFailures. The
+           * reader still has the snapshot-rendered section on screen. */
+          console.error("[messages-live] re-render failed:", e);
+        }
+      },
+    });
+  }
 }
 
 /* ------------------------------------------------------------------ *
@@ -417,15 +511,21 @@ function renderOne(name, fn) {
 }
 
 function renderAll() {
-  /* Freshness first, and NOT through renderOne(). renderStaleBanner() is what sets
-   * state.snapshotAgeHours, and the conclusion's "X ago or more recent" wording and its
-   * "data as of" note are chosen from that value — so it has to be known before the renderers
-   * that read it run. Listed again at the end of this function to paint the DOM element itself.
+  /* Freshness first, and NOT through renderOne().
    *
-   * Routing it through renderOne() would be a downgrade: if it failed, snapshotAgeHours would
-   * keep its previous value or stay null, and the staleness banner would silently disappear.
+   * Routing it through renderOne() would be a downgrade: a failure would be absorbed, the banner
+   * would keep its previous state or stay empty, and stale data would silently look current.
    * Hiding stale data is worse than the bug this file is fixing — so it stays outside, and a
-   * failure here is loud rather than absorbed. */
+   * failure here is loud rather than absorbed.
+   *
+   * ORDERING NOTE, because it used to matter and no longer does. This comment previously said the
+   * conclusion's "X ago or more recent" wording and its "data as of" note were chosen from
+   * state.snapshotAgeHours, which renderStaleBanner() sets — so the banner had to run first.
+   * That is no longer true: both now read the TIMELINE's own age (see timelineAgeHours()), which
+   * does not depend on this function having run. The banner is still first because it is the
+   * page's most important warning and should win the frame, but the renderers below no longer
+   * depend on it for correctness. Left stated here because the old reason was a real constraint
+   * and a reader deserves to know it was retired deliberately rather than forgotten. */
   renderFailures = [];
   renderStaleBanner();
 
@@ -548,9 +648,25 @@ function renderFlipLog() {
           return esc(r.label || "");
         })
         .join("；");
+      /* iso(), not `new Date(...).toISOString()`: this and the watch-log row below were the last
+       * two places on the page that formatted a time themselves instead of going through the
+       * shared formatter, and both had the same two defects.
+       *
+       * No timezone label — the raw form prints "2026-09-25 03:45:44" and leaves the reader to
+       * guess whether that is UTC or their own clock. `iso()` appends " UTC", like every other
+       * timestamp on the page.
+       *
+       * No guard — `toISOString()` on an invalid date throws `RangeError: Invalid time value`.
+       * These rows are read straight out of localStorage, which is user-writable and survives
+       * schema changes, so one bad entry would take out the whole section. `iso()` returns
+       * UNAVAILABLE for anything non-finite instead of throwing.
+       *
+       * `e.at` is epoch MILLISECONDS (written as Date.now()); `iso()` takes SECONDS. Dropping the
+       * /1000 does not fail loudly, it silently renders the year 58701 — the same millisecond bug
+       * that lib/snapshots.js had. */
       return (
         `<tr>` +
-        `<td class="tiny">${new Date(e.at).toISOString().replace("T", " ").slice(0, 19)}</td>` +
+        `<td class="tiny">${iso(e.at / 1000)}</td>` +
         `<td class="num">${e.block.toLocaleString()}</td>` +
         `<td><b>${esc(FLIP_LABEL(e))}</b></td>` +
         `<td class="tiny">${why}</td>` +
@@ -753,7 +869,21 @@ function renderSummaryVisual() {
     `<div class="gauge-floor" style="left:${floorPct.toFixed(2)}%"></div>` +
     `</div>` +
     `<div class="gauge-scale">` +
-    `<span>0</span>` +
+    /* The left end of the scale, and the only mark on it that carries no unit. It is the
+     * origin — "pool IMD = 0" — not a reading of the pool, so the number is not a measurement
+     * that could be wrong; it is where the axis starts. That distinction is also why it stays
+     * bare while its two neighbours read "Trigger line floor 9,000" and "Trigger line
+     * 9,000.00": a "0 IMD" label would claim the pool holds zero, which is a different and
+     * false statement, and the pool's real position is already drawn by .gauge-fill directly
+     * above. It goes through tr() anyway so the value is not a literal in this file.
+     *
+     * Worth knowing: three separate readers reported this as a stray, unlabelled "0" — one of
+     * them guessed it meant "distance to trigger", which is a real number that lives in
+     * .gauge-gap below (s.518) and is deliberately absent when the pool is on the line. A bare
+     * digit sitting under a chart reads as a leftover, and this one had no assertion on it in
+     * scripts/test-render.mjs, which is how it survived. If it is ever reworded, label it as a
+     * scale mark rather than as a quantity. */
+    `<span>${tr("s.540")}</span>` +
     `<span>${tr("s.520", { p0: fmt18(d.floor, 0) })}</span>` +
     `<span>${tr("s.521", { p0: fmt18(cap, 2) })}</span>` +
     `</div>` +
@@ -1182,6 +1312,24 @@ function renderStatus() {
 function renderStaleBanner() {
   const el = $("stale-banner");
   if (!el) return;
+
+  /* The monitored set, named once. Both calls below pass this same object, so the page's idea
+   * of "which sources are monitored" cannot drift between them.
+   *
+   * NOTE ON THE DOUBLE READ. `oldestSnapshot()` and `snapshotAges()` are both called on it.
+   * That is deliberate, not redundancy to be tidied away:
+   *
+   *   - `oldestSnapshot()` answers "how old is the single worst source", which is the question
+   *     the per-figure wording asks (see mayNotBeLatest()). Its call site is ALSO textually
+   *     parsed by scripts/check-last-trim.mjs, which compares the source names it finds here
+   *     against the names that check monitors, so that the banner it predicts is the banner a
+   *     reader sees. Removing or reshaping this call makes that guard fail — or, worse, makes
+   *     its regex silently match nothing. Keep it spelled exactly like this.
+   *   - `snapshotAges()` answers "how many are stale, and which", which is what this banner
+   *     has to say. It is not a replacement for the call above.
+   *
+   * Both are pure and the set is five objects, so the second read costs nothing next to the
+   * value of leaving a working guard in place. */
   const oldest = oldestSnapshot({
     timeline: state.timeline,
     base: state.baseData,
@@ -1189,18 +1337,82 @@ function renderStaleBanner() {
     messages: state.messages,
     "bridge-history": state.bridgeSnapshot,
   });
+  /* The age of the OLDEST monitored source. This is the banner's figure — "the worst of them is
+   * N hours old" is exactly the question a staleness banner should answer.
+   *
+   * NOT the figure any wording is chosen from, and that is deliberate. It used to be: the
+   * conclusion's "X ago or more recent" qualifier read this value, which meant a stale `base`
+   * (whose data has nothing to do with burn times) qualified a statement about the last burn.
+   * Measured 2026-09-25: timeline fresh at 0.1h, base stale at 9.5h, and the page called a
+   * current burn time "possibly not the latest". Those renderers now ask the TIMELINE's own age
+   * via timelineAgeHours(). So do not wire this field back into copy: changing it here would
+   * silently change nothing on the page, this assignment being the only writer and no renderer
+   * reading it. It is kept because it is the one place this fact is recorded, and the banner's
+   * element is painted from it at the end of renderAll(). */
   state.snapshotAgeHours = oldest ? oldest.ageHours : null;
-  if (!oldest || oldest.ageHours <= STALE_AFTER_HOURS) {
+
+  /* Read from state again rather than from a shared local: the literal above must stay spelled
+   * out inside the oldestSnapshot() call for check-last-trim.mjs to parse, so the two reads
+   * cannot be factored into one object without breaking that guard. Re-listing five properties
+   * is the cheap half of that trade; the alternative is a guard that silently reads an empty
+   * list and reports success. */
+  const ages = snapshotAges(
+    {
+      timeline: state.timeline,
+      base: state.baseData,
+      volume: state.volume,
+      messages: state.messages,
+      "bridge-history": state.bridgeSnapshot,
+    },
+    Date.now(),
+    STALE_AFTER_HOURS
+  );
+  /* For the banner only. Deliberately NOT folded into snapshotAgeHours: "how many sources are
+   * behind" and "may this particular figure be out of date" are different questions, and a
+   * single scalar answering both is how the old banner ended up reporting one stale source
+   * while several were frozen. */
+  state.snapshotStaleNames = ages.stale.map((s) => s.name);
+
+  if (ages.staleCount === 0) {
     el.innerHTML = "";
     return;
   }
-  const when =
-    oldest.ageHours >= 48
-      ? tr("stale.days", { p0: Math.floor(oldest.ageHours / 24) })
-      : tr("stale.hours", { p0: oldest.ageHours.toFixed(1) });
+
+  /* Say WHEN, in the unit that suits the magnitude. A 9-hour figure reads better as hours; a
+   * three-day one as days. */
+  const whenOf = (h) => (h >= 48 ? tr("stale.days", { p0: Math.floor(h / 24) }) : tr("stale.hours", { p0: h.toFixed(1) }));
+  const worst = ages.oldest;
+  const when = whenOf(worst.ageHours);
+
+  /* Partial vs total is the distinction this banner exists to make. Measured live on
+   * 2026-09-25, the page sat at 2-of-5 stale for hours: `base` and `messages` frozen ~9.5h
+   * while `timeline` — the source behind the burn figures the reader looks at first — was
+   * minutes old. The old banner said "the oldest is 9.5h" and named `base`, which was true and
+   * told the reader nothing about the other frozen source or about how much of the page was
+   * affected. Partial staleness is harder to notice than total staleness precisely because the
+   * page still shows fresh-looking numbers, so this is the case the wording has to handle
+   * best. */
+  const partial = ages.staleCount < ages.total;
+
+  /* Name the stale sources so the reader can check for themselves. Capped at three: this is a
+   * banner, not a file listing, and beyond a few names the list stops being read. */
+  const MAX_NAMES = 3;
+  const named = ages.stale.slice(0, MAX_NAMES).map((s) => `<code>${esc(s.name)}</code>`).join(tr("stale.listSep"));
+  const more = ages.staleCount > MAX_NAMES ? tr("stale.andMore", { p0: ages.staleCount - MAX_NAMES }) : "";
+
+  /* The audited facts about which figures come from snapshots. Kept verbatim from the single
+   * message this replaces, so the reassuring half of the sentence is not weakened by the
+   * change — a reader who was told "the live numbers are unaffected" must still be told. */
+  const scope = tr("stale.scope");
+  const live = tr("stale.live");
+
   el.innerHTML =
     `<div class="banner warn" style="margin-top:18px"><span class="ic">!</span><div>` +
-    tr("stale.banner", { p0: when, p1: esc(oldest.name) }) +
+    (partial
+      ? tr("stale.bannerPartial", { p0: ages.staleCount, p1: ages.total, p2: named, p3: more, p4: when })
+      : tr("stale.bannerAll", { p0: ages.total, p1: named, p2: more, p3: when })) +
+    scope +
+    live +
     `</div></div>`;
 }
 
@@ -1594,12 +1806,26 @@ function renderTimeline() {
     const b = t.last[name];
     if (!b) return "";
     const ts = t.blockTime[b];
-    const age = ts ? ago(ts) : "—";
+    /* The two cells move together, or neither does.
+     *
+     * They answer the same question — when did this last happen — from two sources with
+     * different precision. `iso(ts)`/`ago(ts)` are exact but depend on `blockTime[b]`, which the
+     * build can legitimately be missing (build-data.mjs only resolves the first and last block
+     * of each event type, so an event in the middle of a type has no entry). `days` is computed
+     * from `s.blockNumber - b` at 12s/block and depends on nothing.
+     *
+     * Rendering the fallback independently therefore produced "— (0.5 days ago)": the exact cell
+     * admitted it had no data while the cell beside it answered anyway, from an estimate that is
+     * not labelled as one. Two values of different provenance sat in adjacent columns looking
+     * like one reading, and the approximate one won. When `ts` is absent the honest display is
+     * that this event's time was not resolved — not a precise-looking number of days derived
+     * from a block delta. Both cells fall back to UNAVAILABLE together. */
+    const known = ts != null;
     const days = blocksToDays(s.blockNumber - b);
     return (
       `<div class="ev ${tone}"><div class="what">${esc(label)}</div>` +
-      tr("s.187", { p0: b.toLocaleString(), p1: ts ? iso(ts) : "—" }) +
-      tr("s.188", { p0: age, p1: days.toFixed(1) })
+      tr("s.187", { p0: b.toLocaleString(), p1: known ? iso(ts) : "—" }) +
+      tr("s.188", { p0: known ? ago(ts) : "—", p1: known ? days.toFixed(1) : "—" })
     );
   });
   setHtml("timeline", out.join(""));
@@ -2110,6 +2336,12 @@ function renderSimulator() {
         `</div>`
     );
     if (h.firstFireDay) {
+      /* A day, not a moment. `firstFireDay` is "how many days from now", a linear extrapolation
+       * from the current burn rate — it is not a real timestamp and its precision is well under a
+       * day. Printing it as `YYYY-MM-DD` is honest about that. Appending " UTC" here would be
+       * false precision: it would dress an estimate up as an instant, which is the opposite of
+       * what the rest of this page does with its timestamps. Deliberately left unlabelled — do
+       * not "fix" this during a timezone audit. */
       const when = new Date(Date.now() + h.firstFireDay * 86400000).toISOString().slice(0, 10);
       out.push(
         `<div class="banner info"><span class="ic">i</span><div>` +
@@ -2430,15 +2662,82 @@ const MSG_FILTERS = {
 /** How many messages are rendered before the "show all" button appears. */
 const MSG_PAGE = 6;
 
+/**
+ * The message list to render: the live-merged view once the follower has produced one, the plain
+ * snapshot otherwise.
+ *
+ * `state.messages` (the snapshot) is NOT replaced, because the details block below still prints its
+ * counts — and those describe what the fetch script produced. Only the RENDERED list switches to the
+ * merged view, so the numbers in the details keep meaning what they say instead of silently
+ * describing a different set than the list above them.
+ */
+const msgView = () => (state.messagesLive && state.messagesLive.messages.length ? state.messagesLive : state.messages);
+
+/**
+ * Which data the message list is showing, stated plainly beside it.
+ *
+ * A page that mixes a live feed with a pre-generated file has to say which is which. This project's
+ * existing rule (`stale.asOf`, `awaiting.frozenAsOf`, `mayNotBeLatest()`) is that labelling staleness
+ * always beats manufacturing freshness, and the message section needs that more than anywhere else:
+ * the reader's complaint was precisely that they could not tell whether the page had updated. A list
+ * that silently swaps its source is worse than one that never updates, because trust is what is
+ * being spent.
+ *
+ * Four states, each a different sentence:
+ *
+ *   idle / pending  the follower has not produced a result yet — the list is the snapshot alone
+ *   live + ahead    the chain was read AND held a message the snapshot did not have
+ *   live + same     the chain was read successfully and had nothing newer
+ *   error/stopped   the live read is unavailable (unreachable, or given up after repeated failures)
+ *
+ * The last two are the ones most dashboards blur: "we are still looking" and "we gave up looking"
+ * look identical on screen if both just show the old file.
+ *
+ * It never claims second-level realtime. Only MINED transactions are visible, so a message still in
+ * the mempool cannot be read by any eth_getBlockByNumber; every sentence below says what was read
+ * and names a cutoff.
+ */
+function messageSourceNote() {
+  const st = state.messagesStatus;
+  const snapAt = state.messages && state.messages.fetchedAt ? fmtDateTime(Date.parse(state.messages.fetchedAt) / 1000) : null;
+  const live = state.messagesLiveFresh || {};
+  /* A block number, or null when there is genuinely none.
+   *
+   * NEVER `Number(x).toLocaleString()` on a possibly-null value: `Number(null)` is 0, not NaN, so an
+   * unwritten block number renders as the confidently wrong "block 0" instead of being absent. The
+   * first attempt at this label printed "已读到区块 0" for exactly that reason, and a reader has no way
+   * to tell that from a real reading. */
+  const blockLabel = live.liveHead === null || live.liveHead === undefined ? null : Number(live.liveHead).toLocaleString();
+
+  if (!st || st.phase === "idle") {
+    return snapAt ? tr("msg.srcSnapshot", { p0: snapAt }) : tr("msg.srcSnapshotNoTime");
+  }
+  if (st.phase === "error" || st.phase === "stopped") {
+    return snapAt ? tr("msg.srcFailed", { p0: snapAt }) : tr("msg.srcFailedNoTime");
+  }
+  /* phase === "live" */
+  if (live.liveIsAhead && live.newestTs && blockLabel) {
+    return tr("msg.srcLiveNew", { p0: fmtDateTime(live.newestTs), p1: blockLabel });
+  }
+  if (blockLabel) {
+    /* The chain was read and held nothing newer. Saying so is the honest answer AND a useful one: it
+     * tells the reader the page IS current and the channel is simply quiet — the opposite conclusion
+     * from "the page is broken", which a stale-looking timestamp would otherwise invite. */
+    return tr("msg.srcLiveSame", { p0: snapAt || "", p1: blockLabel });
+  }
+  return snapAt ? tr("msg.srcSnapshot", { p0: snapAt }) : tr("msg.srcSnapshotNoTime");
+}
+
 function renderMessages() {
   const data = state.messages;
   const el = $("messages-list");
   if (!el) return;
-  if (!data || !data.messages || !data.messages.length) {
+  const view = msgView();
+  if (!view || !view.messages || !view.messages.length) {
     el.innerHTML = tr("s.403");
     return;
   }
-  const all = data.messages;
+  const all = view.messages;
   const devCount = all.filter((m) => m.isDev).length;
   const commCount = all.length - devCount;
   const keyCount = all.filter((m) => m.important).length;
@@ -2464,7 +2763,8 @@ function renderMessages() {
         ? tr("s.407", { p0: ageDays.toFixed(0) })
         : ageDays !== null
           ? tr("s.408", { p0: ageDays < 1 ? tr("s.380") : ageDays.toFixed(0) + tr("s.381") })
-          : "");
+          : "") +
+      messageSourceNote();
   }
 
   // the newest dev post gets its own card at the top
@@ -2505,16 +2805,31 @@ function renderMessages() {
     };
   }
 
+  const live = state.messagesLiveFresh || {};
+  const st = state.messagesStatus || {};
+  /* The live-read numbers, from the follower's own status. Reported as "—" when the read has not
+   * produced a result yet, which is the honest thing to print: a zero here would read as "the chain
+   * has never been read and that is fine". */
+  const readBlocks = st.readBlocks != null ? Number(st.readBlocks).toLocaleString() : "—";
+  const windowBlocks = Number(FIRST_WINDOW).toLocaleString();
+  const batchCalls = st.batchCalls != null ? String(st.batchCalls) : "—";
   setHtml(
     "messages-tech",
-    tr("s.410", { p0: esc(data.address) }) +
-      tr("s.411") +
-      tr("s.412") +
+    /* The old text described the Blockscout crawl alone and ended with "this is a pre-generated
+     * snapshot, not a live value" (s.417). Both halves are now wrong: the page reads the chain itself,
+     * and the script is only the source of the older half. A details block describing a data path the
+     * reader is not looking at is the same class of mistake as a wrong timestamp — confidently
+     * inaccurate rather than merely missing. */
+    tr("s.541") +
+      tr("s.542") +
+      tr("s.543") +
+      tr("s.544", { p0: readBlocks, p1: windowBlocks, p2: batchCalls, p3: new Date(data.fetchedAt).toISOString().replace("T", " ").slice(0, 19) }) +
       tr("s.413", { p0: data.counts.txs, p1: data.counts.decoded, p2: data.counts.undecodable }) +
       tr("s.414", { p0: data.devAddresses.map((a) => `<code>${esc(a)}</code>`).join(tr("s.382")) }) +
       tr("s.415", { p0: esc(data.address) }) +
       tr("s.416", { p0: new Date(data.fetchedAt).toISOString().replace("T", " ").slice(0, 19) }) +
-      tr("s.417")
+      tr("s.546") +
+      tr("s.545")
   );
 }
 
@@ -2679,7 +2994,7 @@ function renderMonitor() {
     .slice(0, 40)
     .map(
       (c) =>
-        `<tr><td class="tiny">${new Date(c.firstSeen).toISOString().replace("T", " ").slice(0, 19)}</td>` +
+        `<tr><td class="tiny">${iso(c.firstSeen / 1000)}</td>` +
         `<td class="tiny"><code>${esc(td(c.label))}</code></td>` +
         `<td class="tiny">${esc(c.from)} → <b>${esc(c.to)}</b></td>` +
         `<td class="tiny muted">${esc(td(c.src))}</td></tr>`
@@ -2716,6 +3031,7 @@ function renderHistory() {
   const t = state.timeline;
   const s = state.snap;
   if (!t || !s) return;
+  const v = s.values;
   const trims = t.trims || [];
   const settles = t.backstopSettles || [];
   $("hist-count").textContent = String(trims.length + settles.length);
@@ -2747,6 +3063,33 @@ function renderHistory() {
 
   const totalBurned = trims.reduce((a, x) => a + BigInt(x.burned), 0n) + settles.reduce((a, x) => a + BigInt(x.burned), 0n);
   const totalRewarded = trims.reduce((a, x) => a + BigInt(x.rewarded), 0n) + settles.reduce((a, x) => a + BigInt(x.rewarded), 0n);
+
+  /* The cumulative split rate, computed rather than printed.
+   *
+   * These two numbers ("add up rewards ÷ total across every burn and you get 1499 bps, not the
+   * configured 1500") used to be hardcoded strings in the locale. That is a claim about the
+   * whole history of the contract, so it goes stale the moment a new burn lands — exactly the
+   * same failure mode as a hardcoded pool balance. Worse, it was silently *unfalsifiable*: the
+   * digits sat in locales/zh.json with nothing connecting them to the data they described, so
+   * no refresh could ever contradict them.
+   *
+   * The subtraction is the interesting part. `removed` is burned + rewarded, NOT `burned`:
+   * tokensRewarded = floor(tokensRemoved × share / 10000) and tokensBurned gets the remainder
+   * (L1033-1034), so the two outputs partition the input. Dividing by `burned` alone gives 1764
+   * bps — a visibly wrong number that looks like a plausible rate, which is precisely why this
+   * needs to be derived and not eyeballed.
+   *
+   * Cross-check that pins the arithmetic down: Σrewarded over timeline.json here equals
+   * `hook.totalRewarded()` read straight off the contract, wei for wei
+   * (5791692940596785380497 at block 26052103). Two independent paths, one number.
+   *
+   * Degrades honestly: if the share cannot be read, the sentence says so via UNAVAILABLE rather
+   * than falling back to a printed 1500 — a reader must never be shown a configured rate we
+   * did not actually read. */
+  const removedTotal = totalBurned + totalRewarded;
+  const configuredBps = v["hook.rewardShareBps"] === undefined ? null : Number(v["hook.rewardShareBps"]);
+  const cumulativeBps = removedTotal > 0n ? Number((totalRewarded * 10000n) / removedTotal) : null;
+
   const lastTrim = trims.length ? trims[trims.length - 1] : null;
   const firstTrim = trims.length ? trims[0] : null;
 
@@ -2778,11 +3121,14 @@ function renderHistory() {
     "hist-note",
     tr("s.438") +
       tr("s.439") +
-      tr("s.440") +
-      tr("s.441") +
+      tr("s.440", {
+        p0: cumulativeBps === null ? UNAVAILABLE : cumulativeBps,
+        p1: configuredBps === null ? UNAVAILABLE : configuredBps,
+      }) +
+      tr("s.441", { p0: configuredBps === null ? UNAVAILABLE : configuredBps }) +
       tr("s.442") +
       tr("s.443") +
-      tr("s.444") +
+      tr("s.444", { p0: configuredBps === null ? UNAVAILABLE : configuredBps }) +
       tr("s.445") +
       tr("s.446") +
       tr("s.447", { p0: firstTrim ? firstTrim.b.toLocaleString() : "—", p1: lastTrim ? lastTrim.b.toLocaleString() : "—" })

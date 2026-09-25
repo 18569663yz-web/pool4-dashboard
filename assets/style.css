@@ -91,8 +91,24 @@ body {
   font-family: var(--sans);
   font-size: 15px;
   line-height: 1.55;
-  overflow-x: hidden;
+  /* This used to be `overflow-x: hidden` and it was the worst of both worlds: the page really
+   * did overflow by up to 118px, and `hidden` guaranteed the reader could neither scroll to the
+   * missing content nor see a scrollbar hinting that anything was missing. The right-hand part
+   * of the activity strip and the footer simply ended at the viewport edge with no explanation.
+   * (Note also that `overflow-x` on `body` with `html` left `visible` propagates to the viewport,
+   * so that clip applied to the whole page.)
+   *
+   * The overflow itself is now fixed at its source — the unbreakable pool-id token in
+   * `#footer-src` set a 444px min-content floor, and the burn-activity bars each carried their
+   * own 297px-wide tooltip. All three viewports measure `scrollWidth === clientWidth` both as
+   * shipped and with `html/body` forced to `overflow-x: visible` (scripts/_cssoverflow.mjs). */
+  overflow-x: clip;
 }
+
+/* A guard rail, not a hiding place: `clip` (unlike `hidden`) creates no scroll container, so a
+ * future regression shows up as a measurable `scrollWidth > clientWidth` instead of being
+ * silently swallowed. If this ever starts mattering again, measure before assuming the clip
+ * covers it — the control reading in scripts/_cssoverflow.mjs exists for exactly that. */
 
 a { color: var(--accent); text-decoration: none; }
 a:hover { text-decoration: underline; }
@@ -188,6 +204,11 @@ section > .lede { color: var(--fg-2); font-size: 13.5px; margin: 0 0 14px; max-w
   height: 12px; border-radius: 999px; background: var(--bg-3);
   overflow: hidden; position: relative; border: 1px solid var(--line);
 }
+/* NOTE for the next reader: this used to read `overflow: hidden`. That is not a valid value for
+ * the `overflow` shorthand (its axes take visible/hidden/clip/scroll/auto), so the whole
+ * declaration was dropped by the parser and BOTH the 5%/15% fill and `.capmark` — which sits at
+ * `left: 100%` — painted past the track's right border. Nothing wrapped or clipped it, so the
+ * spill widened the page. `overflow: clip` is the intended behaviour. */
 .gapbar .fill { height: 100%; background: linear-gradient(90deg, var(--dead), var(--warn)); transition: width .5s ease; }
 .gapbar .capmark {
   position: absolute; top: -3px; bottom: -3px; width: 2px; background: var(--fg-2); left: 100%;
@@ -351,6 +372,48 @@ blockquote cite { display: block; font-style: normal; font-size: 11px; color: va
 
 footer { margin-top: 44px; padding-top: 18px; border-top: 1px solid var(--line); color: var(--fg-3); font-size: 12px; }
 footer p { margin: 6px 0; }
+
+/* --- Why the footer gets its own wrapping rule -------------------------------
+ * `#footer-src` is prose with machine values spliced into it, and the values include two
+ * kinds of unbreakable token:
+ *   - an RPC endpoint URL (https://ethereum-rpc.publicnode.com)
+ *   - a raw 32-byte pool id, 0x4158…faca704
+ *
+ * A browser breaks a line at spaces and at hyphens; it does NOT break inside "0x4158…".
+ * So that one 66-character token defines the **min-content width of the entire footer
+ * paragraph** — nothing else in the paragraph can make it narrower. Measured in isolation at
+ * 390px (scripts/_cssdeep6.mjs): that token alone is 444.33px wide, the paragraph's min-content
+ * is 425.8px, while the footer box is only 366px. Nothing upstream can absorb it: `body` has
+ * `overflow-x: hidden`, which clips the *painting* of the overflow but does not shrink it, and
+ * no ancestor sets a width that a 444px floor could fit into.
+ *
+ * `overflow-wrap: anywhere` is the fix rather than `break-word`, and the difference is exactly
+ * the point here: `anywhere` lets the element's **min-content size collapse** to the widest
+ * single character, so the paragraph stops demanding 426px. `break-word` would break the
+ * painted line but leave the min-content floor at 444px, so an ancestor measuring min-content
+ * (a flex/grid track, a table cell, `width: min-content`) would still be blown out — the same
+ * bug, one level up. Use `anywhere` when the goal is "this box must never be the narrowest
+ * thing on the page".
+ *
+ * `word-break: break-all` is the third option and it is wrong here: it breaks Latin words
+ * mid-word too, so "https://ethereum-rpc" turns into "https://ethereum-r" / "pc". The footer is
+ * English prose with CJK at 12px; mid-word breaking looks like corruption. `anywhere` only
+ * breaks when there is no other option, which is precisely the long-hex-token case.
+ *
+ * Scope: deliberately NOT applied to `.prose`, `.sum-block`, `.msg-body` etc. globally — those
+ * already wrap, and a page-wide `* { overflow-wrap: anywhere }` hides the next bug like this
+ * one instead of fixing it. Targeted at the two places that actually carry machine tokens. */
+#footer-src { overflow-wrap: anywhere; }
+
+/* The `<code>` samples in the first footer paragraph are short API method names
+ * (eth_getTransactionCount is the longest at ~149px). They do not overflow at any width we
+ * support, but they are code in a wrapping paragraph, so they get the same treatment: a
+ * `code` element in this repo has no reason to ever be the widest thing on a phone. */
+footer code { overflow-wrap: anywhere; }
+
+/* Same class of leak, one section up: this note prints a literal blockscout API URL inside a
+ * `code` span, and at 390px it measured a 654px scrollWidth inside a 334px box. */
+.note code { overflow-wrap: anywhere; }
 /* The one human contact point on the page — it gets to be slightly louder than the
  * boilerplate above it. */
 .footer-author { margin-top: 12px; }
@@ -440,7 +503,11 @@ details > div { padding-top: 8px; }
 .gauge-track {
   position: relative; height: 26px; border-radius: 7px;
   background: var(--bg-3); border: 1px solid var(--line);
-  overflow: hidden;
+  /* Was `overflow: hidden` — an invalid value for the shorthand, so it was silently dropped and
+   * the `.gauge-floor` marker (drawn with `top/-bottom: -2px`) stuck 2px out of the track on
+   * each side, uncatchable by any ancestor. Measured at 390px: track 292 > 290. `clip` is what
+   * the author meant; it cuts the marker to the rounded box. */
+  overflow: clip;
 }
 .gauge-fill { height: 100%; border-radius: 6px 0 0 6px; transition: width .5s ease; }
 .gauge-track.live .gauge-fill { background: linear-gradient(90deg, #12b76a, #0a7a4a); }
@@ -471,9 +538,29 @@ details > div { padding-top: 8px; }
 .actbars { display: flex; align-items: flex-end; gap: 2px; height: 54px; }
 .actbars i {
   position: relative;
-  flex: 1 1 0; min-width: 2px; min-height: 2px;
+  /* `flex: 1 1 0` sets flex-basis 0, which a `*`-less flex item resolves the *automatic
+   * minimum size* against — so each bar's floor is its min-content width, not 2px. Our bar has
+   * no content, but it does have a `::after` tooltip carrying `content: attr(data-tip)` at
+   * `white-space: nowrap`; that tooltip is what supplies the min-content. Measured at 390px:
+   * a bar lays out 11.6px wide with a 297px scrollWidth, so 24 bars demanded ~456px and pushed
+   * the document to scrollWidth 489 against clientWidth 390.
+   *
+   * `min-width: 0` is the actual fix: it releases the automatic minimum so the bars really are
+   * the 2px floor. The `overflow: hidden` is belt-and-braces — it also caps the *scrollable*
+   * width contributed by that absolutely positioned tooltip, so the strip can never widen the
+   * page again even if a future tooltip grows.
+   *
+   * A plain `overflow-x: hidden` on `.actbars` alone would have hidden the symptom while
+   * leaving the layout 132px too wide (the mistyped `overflow` that used to sit on
+   * `.gauge-track`/`.gapbar .track` did nothing for exactly this reason — see the note there).
+   * Adding a horizontal scrollbar was the other tempting fix; it is wrong here, because the
+   * strip's whole point is to show the *shape* of the last 24 burns at a glance. */
+  flex: 1 1 0; min-width: 0; min-height: 2px; overflow: hidden;
   background: var(--dead); opacity: .75; border-radius: 2px 2px 0 0;
 }
+/* The tooltip is a hover readout, so on a touch-first screen it never appears — and an
+ * unclipped `nowrap` box is precisely the thing that used to widen the page. */
+@media (hover: none) { .actbars i::after { display: none; } }
 /* Hover readout: the exact block and amount behind one bar. Pointer-only by nature, so it is
  * an enhancement — the strip still reads as a shape without it. */
 .actbars i::after {

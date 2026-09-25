@@ -7,7 +7,7 @@
 import { keccak256Hex, selector, encodeCall, decodeReturns, fmt18, fmtUnits } from "../lib/evm.js";
 import { POOLS, computePoolId, ADDR, POOL_IDS } from "../lib/contracts.js";
 import { templateToZh, isBalanced } from "../lib/scan-strings.js";
-import { snapshotTimestamp, oldestSnapshot } from "../lib/snapshots.js";
+import { snapshotTimestamp, oldestSnapshot, snapshotAges } from "../lib/snapshots.js";
 
 const VECTORS = [
   ["keccak256('')", "", "0xc5d2460186f7233c927e7db2dcc703c0e500b653ca82273b7bfad8045d85a470"],
@@ -162,8 +162,21 @@ console.log("\nsnapshot freshness");
    * year 58,701. Its age read as −14.3 million hours. oldestSnapshot() reports the OLDEST
    * source, so a future-dated one can never win: the staleness banner would have gone
    * permanently silent the day baseline.json was added to the monitored set. */
-  eq("milliseconds are taken as milliseconds, not multiplied again", snapshotTimestamp({ fetchedAt: Date.now() }), Date.now());
-  eq("a real collect.mjs stamp keeps its real age", Math.round((Date.now() - snapshotTimestamp({ fetchedAt: 1790268585235 })) / 3_600_000), Math.round((Date.now() - 1790268585235) / 3_600_000));
+  /* Pin ONE instant and use it on both sides.
+   *
+   * These two assertions each called Date.now() twice — once to build the input, once to build
+   * the expected value. On a fast machine the two calls land in the same millisecond and the
+   * equality holds; when a millisecond boundary falls between them the assertion fails with a
+   * 1ms difference. That is a race in the TEST, not a defect in the code: it made `npm test`
+   * fail roughly one run in a few hundred, with a message that looks like a real regression
+   * ("milliseconds are taken as milliseconds" — got 1790311659315, want 1790311659322).
+   *
+   * A flaky assertion is worse than a missing one: it trains the reader to re-run instead of
+   * investigate, which is exactly how a genuine failure gets waved through. So the clock is read
+   * once, and the value under test is compared to that same reading. */
+  const oneInstant = Date.now();
+  eq("milliseconds are taken as milliseconds, not multiplied again", snapshotTimestamp({ fetchedAt: oneInstant }), oneInstant);
+  eq("a real collect.mjs stamp keeps its real age", Math.round((oneInstant - snapshotTimestamp({ fetchedAt: 1790268585235 })) / 3_600_000), Math.round((oneInstant - 1790268585235) / 3_600_000));
   eq("the millisecond path does not drift into the future", snapshotTimestamp({ fetchedAt: Date.now() }) <= Date.now() + 1000, true);
   eq("the seconds path still works below the cutoff", snapshotTimestamp({ fetchedAt: 1_790_268_585 }), 1_790_268_585_000);
   eq("a snapshot with no timestamp returns null", snapshotTimestamp({ builtAt: "not a date" }), null);
@@ -174,6 +187,66 @@ console.log("\nsnapshot freshness");
   eq("its age is measured in hours", Math.round(oldest.ageHours), 7);
   eq("sources without timestamps are skipped", oldestSnapshot({ a: {}, b: null }, now), null);
   eq("an empty set has no oldest", oldestSnapshot({}, now), null);
+
+  /* ------------------------------------------------------------------ *
+   * snapshotAges(): "how many are stale", not "how old is the worst one"
+   *
+   * The banner used to report only the single oldest source, which is correct arithmetic and
+   * a misleading sentence when a refresh job fails per-step. Measured on the real project on
+   * 2026-09-25, two readings minutes apart gave 1-of-5-stale and 3-of-6-stale — both times the
+   * banner would have named one source and stayed silent about the rest.
+   *
+   * The four cases below are the four readings that matter, and they are deliberately the four
+   * the banner's three branches must distinguish: none stale, some stale (the insidious one),
+   * all stale, and exactly one. `oldest` is asserted equal to oldestSnapshot()'s result so the
+   * two functions cannot drift apart.
+   * ------------------------------------------------------------------ */
+  const T = 3;
+  const ages = (src) => snapshotAges(src, now, T);
+
+  const allFresh = ages({ a: { builtAt: iso(0.5) }, b: { builtAt: iso(1) }, c: { builtAt: iso(2) } });
+  eq("all fresh: nothing is stale", allFresh.staleCount, 0);
+  eq("all fresh: every source is still counted", allFresh.total, 3);
+
+  /* THE CASE THE OLD BANNER COULD NOT EXPRESS. One source frozen, two healthy: the banner said
+   * "the oldest is 9.4h" and a reader could not tell whether the other two were also frozen. */
+  const partly = ages({ fresh1: { builtAt: iso(0.2) }, fresh2: { builtAt: iso(1) }, stale1: { builtAt: iso(9.4) } });
+  eq("partly stale: exactly one is counted stale", partly.staleCount, 1);
+  eq("partly stale: total still counts all three", partly.total, 3);
+  eq("partly stale: the stale one is named", partly.stale[0].name, "stale1");
+  eq("partly stale: healthy sources are NOT reported stale", partly.stale.some((s) => s.name === "fresh1" || s.name === "fresh2"), false);
+
+  const allStale = ages({ a: { builtAt: iso(9) }, b: { builtAt: iso(10) }, c: { builtAt: iso(11) } });
+  eq("all stale: all three are counted", allStale.staleCount, 3);
+  eq("all stale: staleCount equals total", allStale.staleCount, allStale.total);
+  eq("all stale: ordered oldest first", allStale.stale.map((s) => s.name).join(), "c,b,a");
+
+  const mixed = ages({ timeline: { builtAt: iso(0.1) }, base: { builtAt: iso(9.4) }, messages: { builtAt: iso(9.4) }, volume: { builtAt: iso(0.2) } });
+  eq("mixed: two of four are stale", mixed.staleCount, 2);
+  eq("mixed: total is four", mixed.total, 4);
+  eq("mixed: the fresh timeline is not stale", mixed.stale.some((s) => s.name === "timeline"), false);
+
+  /* The threshold is inclusive-below: an age exactly at it is NOT stale, matching the page's
+   * own `ageHours > STALE_AFTER_HOURS` test. */
+  eq("an age exactly at the threshold is not stale", ages({ a: { builtAt: iso(3) } }).staleCount, 0);
+  eq("an age just past the threshold is stale", ages({ a: { builtAt: iso(3.01) } }).staleCount, 1);
+
+  /* Sources with no readable timestamp are skipped, so they cannot inflate `total` — which
+   * matters because the banner prints "N of M" and a silent generator must not be counted as
+   * a healthy one. */
+  const silent = ages({ a: { builtAt: iso(0.5) }, b: {}, c: null, d: { builtAt: "not a date" } });
+  eq("sources without timestamps are excluded from total", silent.total, 1);
+  eq("a silent source is not counted as stale", silent.staleCount, 0);
+  eq("an empty set yields 0 of 0", (() => { const e = ages({}); return e.staleCount === 0 && e.total === 0; })(), true);
+
+  /* Agreement with the function the page still uses for its per-figure wording. If these two
+   * ever disagree, the banner and the "X ago or more recent" qualifier are reading different
+   * facts about the same data. */
+  const agreeSrc = { timeline: { builtAt: iso(0.1) }, base: { builtAt: iso(9.4) }, messages: { builtAt: iso(2) } };
+  const ag = ages(agreeSrc);
+  const ol = oldestSnapshot(agreeSrc, now);
+  eq("snapshotAges().oldest equals oldestSnapshot()", `${ag.oldest.name}|${ag.oldest.ageHours}`, `${ol.name}|${ol.ageHours}`);
+  eq("oldestSnapshot still returns only name and ageHours", Object.keys(ol).sort().join(), "ageHours,name");
 }
 
 console.log(`\n${pass} passed, ${fail} failed`);

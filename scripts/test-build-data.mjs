@@ -43,10 +43,36 @@ if (!existsSync(join(ROOT, FIXTURE))) {
 }
 const fixture = JSON.parse(readFileSync(join(ROOT, FIXTURE), "utf8"));
 
-/* The fixture is derived from data/history.json, so a refresh makes it stale: the newest
- * event blocks have no timestamps in it, and the test would then fail for a stale fixture
- * rather than a real bug. Check that first and say exactly what to run. */
-{
+/* ------------------------------------------------------------------ *
+ * Is the fixture stale, or is it WRONG?
+ *
+ * This check used to be a single assertion — "the fixture has a timestamp for every event
+ * block in history.json" — and it failed on its own once an hour. It was measuring two
+ * different things at once, and they need opposite treatment:
+ *
+ *   L1 — a block at or below the fixture's own head (`l1Head`) with no timestamp in it.
+ *        The fixture was built when that block already existed, so this is a defect in the
+ *        fixture *generator*: `make-base-fixture.mjs` computes the set of blocks it needs and
+ *        asks the chain for exactly those, so a block in that set must have come back.
+ *        This is the real risk, and it must stay a failure — see the note below.
+ *
+ *   L2 — a block above `l1Head`. These events happened *after* the fixture was built, so the
+ *        fixture cannot possibly know about them. The fixture is not wrong; it is older than
+ *        history.json, which CI rewrites every hour. Reporting this as a failure made
+ *        `npm test` red for no reason on a schedule, and a test that goes red on a schedule
+ *        stops being evidence of anything.
+ *
+ * Why L1 has to keep failing, in terms this repo already uses — the failure mode is not
+ * theoretical. `build-data.mjs` in fixture mode reads timestamps ONLY from the fixture and
+ * SILENTLY SKIPS anything it cannot find (`l1BlockTimes`, :43-51); the callers then record
+ * the gap as `t: ts[b] || null` (:179-181). So a missing block becomes a `null` timestamp —
+ * which the page renders as "time unavailable", indistinguishable from "this block really
+ * has no timestamp". That is the exact bug documented at build-data.mjs:99-118, where an
+ * interior milestone event was rendered but never queried and came back looking like absent
+ * chain data. A stale-looking fixture that is really incomplete is that same defect wearing
+ * a different hat, so the distinction is the whole point of this block.
+ * ------------------------------------------------------------------ */
+const staleInfo = (() => {
   const hist = JSON.parse(readFileSync(join(ROOT, "data/history.json"), "utf8"));
   const wanted = new Set();
   for (const e of Object.values(hist.events || {})) {
@@ -60,11 +86,48 @@ const fixture = JSON.parse(readFileSync(join(ROOT, FIXTURE), "utf8"));
     for (const l of hist.events?.[name]?.logs || []) wanted.add(parseInt(l.blockNumber, 16));
   }
   const missing = [...wanted].filter((b) => fixture.l1BlockTimestamps?.[b] === undefined);
+  // `l1Head` is `timeline.scannedTo` at the moment the fixture was built — see
+  // make-base-fixture.mjs:73. It is the watermark: "the fixture deliberately covers the chain
+  // up to here, and no further". If it is absent (an older fixture file), fall back to the
+  // highest block the fixture actually carries, so the check degrades to the old behaviour
+  // rather than silently passing everything.
+  const carried = Object.keys(fixture.l1BlockTimestamps || {}).map(Number).filter(Number.isFinite);
+  const head = Number.isFinite(Number(fixture.l1Head)) ? Number(fixture.l1Head) : Math.max(0, ...carried);
+  /* A block can be "missing" for a third reason: it is above the fixture's head AND above the
+   * highest block the fixture carries, i.e. it postdates the snapshot entirely. Those are
+   * unambiguously L2. The `<= head` test covers the rest. */
+  const beyondHead = missing.filter((b) => b > head).sort((a, b) => a - b);
+  const withinHead = missing.filter((b) => b <= head).sort((a, b) => a - b);
+  return { head, wanted: wanted.size, missing, beyondHead, withinHead };
+})();
+
+{
+  const { head, missing, beyondHead, withinHead } = staleInfo;
   ok(
-    `fixture covers every event block in history.json (${missing.length} missing)`,
-    missing.length === 0,
-    `history.json moved on since the fixture was built — run: npm run fixture`
+    `fixture carries a timestamp for every event block it claims to cover (${withinHead.length} missing at or below its head ${head})`,
+    withinHead.length === 0,
+    `the fixture was built at block ${head}, so these blocks already existed and the generator ` +
+      `should have fetched them: ${withinHead.slice(0, 12).join(", ")}` +
+      `${withinHead.length > 12 ? ` … (${withinHead.length} total)` : ""}\n` +
+      `       This is NOT staleness and re-running \`npm run fixture\` would hide it: the generator ` +
+      `would paper over the gap instead of explaining it. Fix the generator instead.`
   );
+
+  /* L2 is reported, never fatal. It is printed as its own line rather than folded into the
+   * assertion above so that a reader can tell "history moved on" from "the fixture is broken"
+   * at a glance — the old single message told everyone to re-run the fixture, which is the
+   * correct advice for this case and the WRONG advice for the one above. That misdirection is
+   * what let the real defect look like routine maintenance. */
+  if (beyondHead.length) {
+    console.log(
+      `  note history.json has moved past the fixture: ${beyondHead.length} newer event block(s) ` +
+        `(> ${head}), newest ${Math.max(...beyondHead)} — expected between refreshes; ` +
+        `run: npm run fixture  (not a failure)`
+    );
+  } else {
+    console.log(`  note fixture is current: no event block in history.json is beyond its head ${head}`);
+  }
+  if (!missing.length) console.log(`  note fixture covers all ${staleInfo.wanted} event blocks in history.json`);
 }
 
 console.log("build-data.mjs, offline (fixture)");
@@ -87,6 +150,42 @@ try {
 
   ok("timeline.json has trims", Array.isArray(timeline.trims) && timeline.trims.length > 0, `${timeline.trims?.length}`);
   ok("timeline.json timestamps resolved", timeline.trims.every((t) => Number.isFinite(t.t)));
+
+  /* ------------------------------------------------------------------ *
+   * The assertion the old check was trying to be.
+   *
+   * The check above asks "is the fixture recent enough?" — a question about the INPUT's age.
+   * This one asks the question that actually matters: did any event lose its timestamp on the
+   * way out? `build-data.mjs` writes `t: ts[b] || null` (:179-181), so a block the fixture did
+   * not carry is recorded as `null` — which reads as "the chain has no timestamp for this
+   * block" when the truth is "we never asked". Testing the OUTPUT catches that distortion
+   * regardless of whether it was caused by a stale fixture, a generator gap, or a regression
+   * in how blocks are collected.
+   *
+   * Scoped to blocks at or below the fixture's head on purpose: past that watermark the fixture
+   * legitimately has nothing, so a `null` there is the honest answer rather than a defect.
+   * (A `null` can also be genuine for a block the RPC could not resolve; that is why this is
+   * keyed to the fixture's own coverage rather than being a blanket "no nulls anywhere".)
+   * ------------------------------------------------------------------ */
+  {
+    const head = staleInfo.head;
+    const resolvedTrims = (timeline.trims || []).filter((t) => Number.isFinite(t.b) && t.b <= head);
+    const lostTs = resolvedTrims.filter((t) => t.t === null || t.t === undefined);
+    ok(
+      `no event at or below the fixture head lost its timestamp on the way out (${lostTs.length} became null of ${resolvedTrims.length})`,
+      lostTs.length === 0,
+      `build-data wrote t: null for block(s) ${lostTs.slice(0, 8).map((t) => t.b).join(", ")} — ` +
+        `\`t: ts[b] || null\` turned "we never asked" into "the chain has no timestamp here"`
+    );
+    // The same distortion, one level down: the summary line prints the last trim's time, and
+    // build-data.mjs:426 renders a missing entry as the literal "time unavailable".
+    ok(
+      "the summary line can name the last trim's time",
+      /last L1 trim\s+block \d+\s+\d{4}-\d{2}-\d{2}T/.test(r.stdout),
+      (r.stdout.split("\n").filter((l) => /last L1 trim/.test(l))[0] || "").trim() ||
+        "no `last L1 trim` line in stdout — it printed \"time unavailable\""
+    );
+  }
   ok(
     `base.json carries every burn the fixture supplied (${baseOut.burns.length})`,
     baseOut.burns.length === fixture.baseLogs.length,

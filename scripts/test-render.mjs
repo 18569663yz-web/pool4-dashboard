@@ -473,9 +473,44 @@ ok("document title carries a conclusion", /已停|恢复|贴着|正在工作|触
 // which is exactly what the reader complained about.
 const visual = content("sum-visual");
 ok("summary draws the pool-against-trigger gauge", /class="gauge"/.test(visual) && /gauge-fill/.test(visual), `${visual.length} chars`);
-ok("the gauge is filled to the pool's real position", /gauge-fill" style="width:\d+(\.\d+)?%/.test(visual));
+/* The fill width, against the number the page should have computed.
+ *
+ * The old form was `/width:\d+(\.\d+)?%/` — which is satisfied by width:0.00% and by
+ * width:99.99%, i.e. it asserts that a percentage EXISTS and nothing about whether it is right.
+ * This bar is the page's single most important visual claim (how close the pool is to its trigger
+ * line), so a wrong number here misleads every reader while the suite stays green.
+ *
+ * The expected value is recomputed from the same two on-chain readings the page uses
+ * (tokensInPool ÷ inventoryCap), independently of how the page formats them. */
+{
+  const held = els.get("v-held") ? text("v-held").replace(/,/g, "") : "";
+  const cap = els.get("v-cap") ? text("v-cap").replace(/,/g, "") : "";
+  const m = visual.match(/gauge-fill" style="width:([\d.]+)%/);
+  const shown = m ? Number(m[1]) : NaN;
+  const expect = Number(held) && Number(cap) ? Math.max(0, Math.min(100, (Number(held) / Number(cap)) * 100)) : NaN;
+  ok(
+    "the gauge is filled to the pool's real position",
+    Number.isFinite(shown) && Number.isFinite(expect) && Math.abs(shown - expect) < 0.05,
+    `gauge shows ${shown}%, computed from the live readings ${held}/${cap} = ${Number.isFinite(expect) ? expect.toFixed(2) : "?"}%`
+  );
+}
 ok("the gauge marks the ratchet floor", /gauge-floor" style="left:\d/.test(visual));
-ok("the gauge names both ends of the scale", /触发线的下限/.test(visual) && /触发线 [\d,]+/.test(visual));
+/* All THREE scale labels, not the two the old assertion happened to cover.
+ *
+ * The label said "both ends of the scale" while the regex checked the middle and the right end.
+ * The left end was therefore never asserted by anything — which is exactly how a bare, unlabelled
+ * "0" survived on the page until a reader reported it as looking like a bug. A test whose NAME
+ * claims more than its regex checks is worse than no test: it reads like coverage. */
+{
+  const labels = (visual.match(/<div class="gauge-scale">([\s\S]*?)<\/div>/) || ["", ""])[1];
+  const spans = [...labels.matchAll(/<span>([\s\S]*?)<\/span>/g)].map((x) => x[1].replace(/<[^>]+>/g, "").trim());
+  ok("the gauge scale has exactly three labels", spans.length === 3, `${spans.length}: ${JSON.stringify(spans)}`);
+  /* The left end is the scale's ORIGIN, so it names itself as a scale mark rather than carrying a
+   * unit — "0 IMD" there would read as "the pool holds 0 IMD", which is false. */
+  ok("the scale's left end names itself as a scale mark", /刻度|scale/.test(spans[0] || ""), `left label: ${JSON.stringify(spans[0])}`);
+  ok("the scale's floor label carries its number", /触发线的下限\s*[\d,]+/.test(spans[1] || ""), `floor label: ${JSON.stringify(spans[1])}`);
+  ok("the scale's trigger label carries its number", /触发线\s*[\d,]+/.test(spans[2] || ""), `trigger label: ${JSON.stringify(spans[2])}`);
+}
 const actBars = (visual.match(/<i style="height:/g) || []).length;
 ok("summary draws the burn-activity strip", /class="actbars"/.test(visual) && actBars >= 5, `${actBars} bars`);
 ok("the activity strip says when the last burn was", /最近一次烧毁/.test(visual));
@@ -652,24 +687,53 @@ console.log("\non-chain messages");
 // The list is collapsed to the newest few on purpose: 70+ multi-line English quotes turned
 // "证据" into an endless scroll. So assert the collapsed view, the button that expands it,
 // and that expanding really does restore the whole set.
+//
+// The EXPECTED count is read from the snapshot, but the page now also reads the chain live and
+// merges whatever it finds on top (lib/messages-follow.js). So the page's total is the snapshot's
+// length OR MORE, and it changes between runs as people post. Asserting equality against the
+// snapshot was correct while the list was a pure function of that file, and became wrong the
+// moment the list started tracking the chain — the suite went red on a page that was RIGHT.
+//
+// The property worth asserting is the relationship, not a frozen number: the page must show at
+// least what the snapshot holds, whatever the live reader added, and the counts the filters
+// display must agree with what the list actually renders.
 const msgShown = () => (content("messages-list").match(/class="msg /g) || []).length;
 const msgTotal = JSON.parse(readFileSync(ROOT + "data/messages.json", "utf8")).messages.length;
-ok("message list renders the newest few", msgShown() >= 5 && msgShown() <= 8, `${msgShown()} of ${msgTotal}`);
-ok("the rest sit behind a show-all button", new RegExp(`显示全部 ${msgTotal} 条`).test(text("msg-toggle")), text("msg-toggle"));
+const shownAll = () => Number(text("msgf-all-n"));
+ok("message list renders the newest few", msgShown() >= 5 && msgShown() <= 8, `${msgShown()} of >=${msgTotal}`);
+ok("the rest sit behind a show-all button", new RegExp(`显示全部 \\d+ 条`).test(text("msg-toggle")), text("msg-toggle"));
 ok("dev messages visually distinct", content("messages-list").includes("from-dev") && content("messages-list").includes("from-community"));
 ok("newest dev post has its own card", content("messages-latest").length > 100, `${content("messages-latest").length} chars`);
 ok("the 'will change pool4 settings' post is present", /Will change the settings on he pool4 soon/.test(content("messages-latest") + content("messages-list")));
 ok("that post is flagged as important", /重点/.test(content("messages-latest")) || /重点/.test(content("messages-list")));
-ok("filter counts match the message count, not the tx count", Number(text("msgf-all-n")) === msgTotal, `all=${text("msgf-all-n")} dev=${text("msgf-dev-n")} community=${text("msgf-community-n")} expected=${msgTotal}`);
+/* The filter count must equal the list's own total, and cover the snapshot's messages at minimum.
+ * Equality against the snapshot alone would forbid the live read from ever contributing. */
+ok(
+  "filter counts match the message count, not the tx count",
+  Number.isFinite(shownAll()) && shownAll() >= msgTotal,
+  `all=${text("msgf-all-n")} dev=${text("msgf-dev-n")} community=${text("msgf-community-n")} expected >=${msgTotal} (snapshot; the page may add live messages)`
+);
+ok(
+  "the per-filter counts add up to the total",
+  Number(text("msgf-dev-n")) + Number(text("msgf-community-n")) === shownAll(),
+  `dev=${text("msgf-dev-n")} + community=${text("msgf-community-n")} vs all=${text("msgf-all-n")}`
+);
 // >= rather than ==: some message bodies quote an Etherscan link of their own.
 ok("each rendered message links to Etherscan", (content("messages-list").match(/etherscan\.io\/tx\//g) || []).length >= msgShown());
 ok("long messages are clamped", content("messages-list").includes("clamped") || content("messages-list").includes("展开全文"));
-ok("data-source detail states the filter pitfall", /filter=to\|from/.test(content("messages-tech")), content("messages-tech").slice(0, 90));
+/* The technical note used to spell out the blockscout `filter=to|from` pitfall, because that was
+ * how the list was fetched. It now names eth_getBlockByNumber instead — the page reads the chain
+ * directly — so the assertion follows the mechanism rather than a frozen string. */
+ok(
+  "data-source detail names how the list is actually obtained",
+  /eth_getBlockByNumber|filter=to\|from/.test(content("messages-tech")),
+  content("messages-tech").slice(0, 120)
+);
 
 {
   const toggle = els.get("msg-toggle");
   toggle.onclick();
-  ok("show-all expands to every message", msgShown() === msgTotal, `${msgShown()} of ${msgTotal}`);
+  ok("show-all expands to every message the page holds", msgShown() === shownAll(), `${msgShown()} rendered vs ${shownAll()} counted`);
   toggle.onclick();
   ok("show-less collapses back to the newest few", msgShown() >= 5 && msgShown() <= 8, `${msgShown()} messages`);
 }
