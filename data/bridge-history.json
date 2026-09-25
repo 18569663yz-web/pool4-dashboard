@@ -1,45 +1,45 @@
 {
   "_note": "BurnExecutor 的 IMD 余额历史，由 Transfer 日志重建（余额(t) = 现在 − t 之后的净流入）。页面优先用 RPC 历史采样；公共节点不提供 archive 调用时回退到这份快照。由 scripts/fetch-bridge-history.mjs 生成。",
-  "fetchedAt": "2026-09-25T06:16:48.238Z",
-  "headBlock": 26052617,
-  "headTs": 1790316995,
+  "fetchedAt": "2026-09-25T07:52:53.510Z",
+  "headBlock": 26053096,
+  "headTs": 1790322767,
   "now": "589540245983043481067",
   "events": 90,
   "points": [
     {
       "label": "now",
       "hoursAgo": 0,
-      "block": 26052617,
+      "block": 26053096,
       "value": "589540245983043481067"
     },
     {
       "label": "6h",
       "hoursAgo": 6,
-      "block": 26050817,
-      "value": "604283555509491563843"
+      "block": 26051296,
+      "value": "594682573450033983392"
     },
     {
       "label": "12h",
       "hoursAgo": 12,
-      "block": 26049017,
-      "value": "1179080491255929327591"
+      "block": 26049496,
+      "value": "742186708353621215709"
     },
     {
       "label": "18h",
       "hoursAgo": 18,
-      "block": 26047217,
-      "value": "2366120164518766975651"
+      "block": 26047696,
+      "value": "2355909068627329221165"
     },
     {
       "label": "24h",
       "hoursAgo": 24,
-      "block": 26045417,
-      "value": "2464578788371085961661"
+      "block": 26045896,
+      "value": "2444996808556394564208"
     },
     {
       "label": "7d",
       "hoursAgo": 168,
-      "block": 26002217,
+      "block": 26002696,
       "value": "12576970353631253105905"
     }
   ]
