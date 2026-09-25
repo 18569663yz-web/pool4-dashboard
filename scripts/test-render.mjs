@@ -50,6 +50,203 @@ if (FIXTURE_VARIANT) {
   const revive = (v) => (Array.isArray(v) ? v.map(revive) : typeof v === "string" && /^\d+$/.test(v) ? BigInt(v) : v);
   const base = Object.fromEntries(Object.entries(RAW.values).map(([k, x]) => [k, revive(x)]));
 
+  /* ---- the STALE-CLOCK family (P1-1 / P1-2) ----
+   *
+   * These variants do not test a pool POSITION, they test a refresh STALL: the live clock has
+   * moved past what the frozen snapshots cover. That is a different axis from the four-state
+   * regression below and needs its own fixtures, because the defect it guards is invisible in
+   * every position: the page keeps rendering, the numbers keep looking like numbers, and the
+   * only wrong thing is a window that quietly slid off the data.
+   *
+   *   STALE_WINDOW   timeline built 30h ago  → the 24h window is OUT of the snapshot's reach
+   *   QUIET_WINDOW   built 3h ago, newest trim 30h back → window COVERED, genuinely empty
+   *
+   * The pair is the point. One asserts the figure is withheld; the other asserts a real measured
+   * zero is still shown as one. A fix that satisfied only the first would be a regression that
+   * made the burn-rate panel useless, and nothing would notice.
+   *
+   * Rendered in its own subprocess for the same reason the four-state regression is: app.js
+   * calls init() at module scope and the i18n dictionary is module state, so a second import in
+   * one process races boot()'s awaits and reads the DOM back while tr() still returns raw keys. */
+  const STALE_CLOCKS = {
+    STALE_WINDOW: { builtAgoH: 30, lastTrimAgoH: 0, bridgeAgoMin: 200 },
+    QUIET_WINDOW: { builtAgoH: 3, lastTrimAgoH: 30, bridgeAgoMin: 12 },
+  };
+  const clock = STALE_CLOCKS[FIXTURE_VARIANT];
+  if (clock) {
+    const liveNow = Math.floor(Date.now() / 1000);
+    const builtSec = liveNow - clock.builtAgoH * 3600;
+    const builtAt = new Date(builtSec * 1000).toISOString();
+    const trims = [
+      { b: 26000000, burned: String(50n * E18), rewarded: String(9n * E18), eth: "100", tx: "0x" + "a".repeat(64), t: builtSec - 12 * 86400 },
+      { b: 26010000, burned: String(120n * E18), rewarded: String(21n * E18), eth: "100", tx: "0x" + "b".repeat(64), t: builtSec - 6 * 86400 },
+      { b: 26020000, burned: String(80n * E18), rewarded: String(14n * E18), eth: "100", tx: "0x" + "c".repeat(64), t: builtSec - clock.lastTrimAgoH * 3600 },
+    ];
+    const values2 = { ...base };
+    values2["burnExecutor.tokenBalance"] = 700n * E18;
+
+    const html2 = readFileSync(ROOT + "index.html", "utf8");
+    const ids2 = [...html2.matchAll(/\bid="([^"]+)"/g)].map((m) => m[1]);
+    class El2 {
+      constructor(id) {
+        this.id = id;
+        this._html = "";
+        this.textContent = "";
+        this.className = "";
+        this.value = "0";
+        this.style = {};
+        this.attrs = {};
+      }
+      set innerHTML(v) {
+        this._html = String(v);
+      }
+      get innerHTML() {
+        return this._html;
+      }
+      addEventListener() {}
+      setAttribute(k, v) {
+        this.attrs[k] = String(v);
+      }
+      getAttribute(k) {
+        return this.attrs[k] ?? null;
+      }
+      removeAttribute(k) {
+        delete this.attrs[k];
+      }
+      appendChild() {}
+    }
+    const els2 = new Map(ids2.map((id) => [id, new El2(id)]));
+    const meta2 = new Map();
+    const makeMeta2 = (sel) => {
+      if (!meta2.has(sel)) {
+        const m = new El2(sel);
+        m.attrs = { content: "" };
+        meta2.set(sel, m);
+      }
+      return meta2.get(sel);
+    };
+    globalThis.document = {
+      getElementById: (id) => els2.get(id) || null,
+      addEventListener: () => {},
+      hidden: false,
+      createElement: (t) => new El2(t),
+      title: "",
+      documentElement: new El2("html"),
+      querySelectorAll: () => [],
+      querySelector: (sel) => makeMeta2(sel),
+      createRange: () => ({ selectNodeContents() {} }),
+      body: new El2("body"),
+      head: new El2("head"),
+    };
+    Object.defineProperty(globalThis, "navigator", { value: { language: "zh-CN" }, configurable: true, writable: true });
+    globalThis.location = { search: "", href: "http://localhost/", pathname: "/", hash: "" };
+    globalThis.history = { replaceState: () => {} };
+    const store2 = new Map();
+    globalThis.localStorage = {
+      getItem: (k) => (store2.has(k) ? store2.get(k) : null),
+      setItem: (k, v) => store2.set(k, String(v)),
+      removeItem: (k) => store2.delete(k),
+    };
+    globalThis.window = globalThis;
+    globalThis.addEventListener = () => {};
+    globalThis.removeEventListener = () => {};
+    globalThis.setInterval = () => 0;
+    globalThis.clearInterval = () => {};
+    globalThis.getComputedStyle = () => ({ getPropertyValue: () => "" });
+    globalThis.matchMedia = () => ({ matches: false, addEventListener: () => {} });
+    globalThis.requestAnimationFrame = (fn) => setTimeout(fn, 0);
+    globalThis.fetch = async (url) => {
+      const p = String(url).replace(/^https?:\/\/[^/]+\//, "").replace(/^\/+/, "").split("?")[0];
+      try {
+        return new Response(readFileSync(ROOT + p, "utf8"), { status: 200, headers: { "content-type": "application/json" } });
+      } catch {
+        return new Response("not found", { status: 404 });
+      }
+    };
+
+    const renderFailures2 = [];
+    const realError2 = console.error;
+    console.error = (...a) => {
+      const m = a.map(String).join(" ");
+      if (/^\[render\]/.test(m) || /\[invariant\]/.test(m)) renderFailures2.push(m);
+    };
+
+    globalThis.__POOL4_FIXTURE__ = {
+      blockNumber: 26052200,
+      blockTimestamp: liveNow,
+      fetchedAt: liveNow * 1000,
+      endpoint: "test-render:" + FIXTURE_VARIANT,
+      values: values2,
+      derived: derive(values2, {}),
+      errors: {},
+      base: { blockNumber: 0, values: {}, errors: {}, chainId: 8453, skipped: true },
+    };
+    globalThis.__POOL4_TIMELINE__ = {
+      builtAt,
+      blockTime: Object.fromEntries(trims.map((x) => [x.b, x.t])),
+      last: { MarketOpened: 25887100, Trimmed: trims[2].b, CapRatcheted: 26019191, BackstopSettled: 26019438, Rebalanced: 26019438, ClaimsSettled: 26019540, FeesWithdrawn: 26017262, FeeCollected: 26052389, DeploymentFloorUpdated: 26052389 },
+      trims,
+      backstopSettles: [{ b: 26019000, burned: String(5n * E18), rewarded: "0", tx: "0x" + "d".repeat(64), t: builtSec - 8 * 86400 }],
+      milestones: [],
+      scannedFrom: 25887354,
+      scannedTo: 26052389,
+      totalLogs: 1234,
+    };
+    globalThis.__POOL4_BRIDGE__ = {
+      _note: "stale-clock fixture",
+      fetchedAt: new Date((liveNow - clock.bridgeAgoMin * 60) * 1000).toISOString(),
+      headBlock: 26051000,
+      headTs: liveNow - clock.bridgeAgoMin * 60,
+      now: String(700n * E18),
+      events: [],
+      points: [
+        { label: "now", hoursAgo: 0, block: 26051000, value: String(700n * E18) },
+        { label: "6h", hoursAgo: 6, block: 26050302, value: String(600n * E18) },
+        { label: "12h", hoursAgo: 12, block: 26048502, value: String(500n * E18) },
+        { label: "18h", hoursAgo: 18, block: 26046702, value: String(400n * E18) },
+        { label: "24h", hoursAgo: 24, block: 26044902, value: String(2600n * E18) },
+        { label: "7d", hoursAgo: 168, block: 26001702, value: String(3000n * E18) },
+      ],
+    };
+
+    await import("../assets/app.js");
+    await new Promise((r) => setTimeout(r, 2500));
+    console.error = realError2;
+
+    const strip2 = (h) =>
+      String(h)
+        .replace(/<[^>]+>/g, " ")
+        .replace(/&lt;/g, "<")
+        .replace(/&gt;/g, ">")
+        .replace(/&amp;/g, "&")
+        .replace(/&#39;/g, "'")
+        .replace(/&quot;/g, '"')
+        .replace(/\s+/g, " ")
+        .trim();
+    const txt2 = (id) => {
+      const e = els2.get(id);
+      return e ? strip2(e.innerHTML) || strip2(e.textContent) : "";
+    };
+    const out2 = {
+      variant: FIXTURE_VARIANT,
+      texts: {
+        burnrate: txt2("burnrate"),
+        histStats: txt2("hist-stats"),
+        histStamp: txt2("hist-stamp"),
+        histCount: txt2("hist-count"),
+        sparkStamp: txt2("spark-stamp"),
+        awaitingStats: txt2("awaiting-stats"),
+        awaitingNote: txt2("awaiting-note"),
+      },
+      renderFailures: renderFailures2,
+    };
+    const outPath2 = process.env.FS_OUT;
+    const json2 = JSON.stringify(out2, null, 2);
+    if (outPath2) writeFileSync(outPath2, json2, "utf8");
+    else process.stdout.write(json2);
+    process.exit(0);
+  }
+
   const CAP = base["hook.inventoryCap"];
   const FLOOR = base["hook.capFloor"];
   const LIQ = base["hook.positionLiquidity"];
@@ -1143,6 +1340,190 @@ console.log("\non-chain messages (en)");
         `from the first:\n       ${copies.join("\n       ")}`
     );
   }
+}
+
+/* ==================================================================== *
+ * P1-1 / P1-2 — a refresh stall must not silently decay into a false reading
+ *
+ * WHY THIS SECTION EXISTS
+ *
+ * Both defects are invisible in every state this file already tests. The page keeps
+ * rendering, the numbers keep looking like numbers, and the only wrong things are:
+ *
+ *   P1-2  renderBurnRate() filtered the frozen `timeline.trims` against a cutoff built from
+ *         the LIVE block timestamp. As the clock advanced past the snapshot, the cutoff slid
+ *         off the data, the row count decayed to 0, and the page printed "0 IMD" — a claim
+ *         that the engine burned nothing, when the truth was that the window could not be
+ *         read at all. `assets/app.js` forbids exactly this two screens up:
+ *         "A number we could not read must never render as 0 — 0 is a claim."
+ *
+ *   P1-1  renderAwaiting() subtracts a frozen sample point from a live balance. Its only
+ *         mitigation was dimming, gated on `mayNotBeLatest()` → `snapshotExpired()`, which
+ *         needs the TIMELINE to be >3h old. A stall under three hours was completely
+ *         invisible, and the card still read "+1,234.56 IMD" in the tone reserved for a
+ *         current reading.
+ *
+ * THE INSTRUMENT
+ *
+ * Two injected fixtures, in their own subprocesses (see STALE_CLOCKS above), plus the
+ * counter-check that makes the pair meaningful. `data/timeline.json` in this checkout is
+ * whatever the last refresh produced, so the assertions must not depend on it — the fixture
+ * supplies the live block and the frozen files directly.
+ * ==================================================================== */
+{
+  const plain = (s) => String(s).replace(/<[^>]+>/g, " ").replace(/\s+/g, " ").trim();
+  const VARIANT_TIMEOUT_MS = 60000;
+  const staleDir = mkdtempSync(join(tmpdir(), "pool4-stale-"));
+  const gotStale = new Map();
+
+  const renderStale = (variant) => {
+    const outPath = join(staleDir, `${variant}.json`);
+    const r = spawnSync(process.execPath, [fileURLToPath(import.meta.url)], {
+      env: { ...process.env, FS_VARIANT: variant, FS_OUT: outPath },
+      stdio: "ignore",
+      timeout: VARIANT_TIMEOUT_MS,
+      killSignal: "SIGKILL",
+      cwd: ROOT,
+    });
+    if (!existsSync(outPath)) {
+      return { variant, missing: true, status: r.status, signal: r.signal, error: r.error ? String(r.error.message) : "" };
+    }
+    return JSON.parse(readFileSync(outPath, "utf8"));
+  };
+  for (const v of ["STALE_WINDOW", "QUIET_WINDOW"]) gotStale.set(v, renderStale(v));
+
+  console.log("\nP1-1 / P1-2 — a stalled refresh must not read as a measurement (injected fixtures)");
+
+  for (const v of ["STALE_WINDOW", "QUIET_WINDOW"]) {
+    const f = gotStale.get(v);
+    ok(`stale-clock fixture ${v} produced a result`, !f.missing, f.missing ? `status=${f.status} signal=${f.signal} ${f.error}` : "");
+    if (f.missing) continue;
+    /* The health gate, same rule as the four-state regression: renderOne() absorbs a thrower,
+     * so an empty section would make the semantic assertion below pass for the wrong reason. */
+    ok(`${v}: no renderer threw (nothing silently blank)`, Array.isArray(f.renderFailures) && f.renderFailures.length === 0, (f.renderFailures || []).join("\n       ") || "(none reported)");
+  }
+
+  const stale = gotStale.get("STALE_WINDOW");
+  const quiet = gotStale.get("QUIET_WINDOW");
+
+  if (!stale.missing) {
+    /* ---- the defect itself ----
+     * The fixture's newest trim is 30h old with a live clock at now, so the 24h window opens
+     * before the snapshot's last event: it cannot be read from this snapshot. */
+    /* Slice at the NEXT tile, not at a fixed character count. The first draft used 220 chars,
+     * which ran past the 24h tile into the 7-day one — and that neighbour legitimately prints
+     * "80.000 IMD", so a `/0 IMD/` test over the span was reading the neighbour's number and
+     * failing a page that was right. A tile assertion has to be scoped to its tile. */
+    const tileAt = (text, label) => {
+      const i = text.indexOf(label);
+      if (i < 0) return "";
+      const rest = text.slice(i + label.length);
+      const next = rest.search(/最近 \d+ (?:小时|天)|全历史平均|本次打开页面以来|项目方设定的/);
+      return rest.slice(0, next < 0 ? 240 : next);
+    };
+    const br24 = plain(stale.texts.burnrate);
+    const tile24 = tileAt(br24, "最近 24 小时烧毁");
+    ok(
+      "the stale-clock fixture really did produce a 24h tile to judge",
+      tile24.length > 0,
+      `burnrate = "${br24.slice(0, 200)}"`
+    );
+    ok(
+      "an uncovered 24h window is withheld, not rendered as a measured zero",
+      /取不到|unavailable/.test(tile24),
+      `"${tile24}" — this is the P1-2 defect: the window slid off the snapshot and the page claimed "0 IMD"`
+    );
+    ok(
+      "the withheld window names where the data stops",
+      /数据截至|data as of/.test(tile24) && /\d{4}[-/]\d{2}[-/]\d{2}/.test(tile24),
+      `"${tile24}" — "unavailable" alone cannot distinguish a dead RPC from a stale job`
+    );
+    ok(
+      "the withheld window does not claim the engine burned nothing",
+      !/0 IMD/.test(tile24),
+      `"${tile24}" — "0 IMD" asserts the pool burned nothing, which this snapshot cannot support`
+    );
+    /* The neighbouring 7-day tile is scored on its own, because the distinction between the two
+     * is the substance of the fix: the 168h window reaches a week back and DOES survive a 30h
+     * stall, so it must keep showing its real figure. A fix that withheld both would be wrong. */
+    const tile7d = tileAt(br24, "最近 7 天烧毁");
+    ok(
+      "the 7d window survives the same stall and still shows its real figure",
+      /80\.000 IMD/.test(tile7d) && !/取不到|unavailable/.test(tile7d),
+      `"${tile7d}" — the 168h window reaches further back than the 24h one; withholding it too would discard a readable number`
+    );
+    /* ---- P1-2's same-class targets: the frozen history block carried no timestamp at all ---- */
+    ok(
+      "the frozen history block states its own cutoff",
+      /数据截至|data as of/.test(stale.texts.histStamp) && /小时前|h ago|分钟前|m ago/.test(stale.texts.histStamp),
+      `#hist-stamp = "${stale.texts.histStamp.slice(0, 200)}" — #hist-count/#hist-range/#hist-stats come from the frozen trims[]`
+    );
+    ok(
+      "the resulting figure is not nested inside another parenthetical",
+      !/（[^）]*（[^）]*）|\([^)]*\([^)]*\)/.test(stale.texts.histStamp) && !/（[^）]*（[^）]*）/.test(stale.texts.sparkStamp),
+      `#hist-stamp = "${stale.texts.histStamp.slice(0, 160)}" / #spark-stamp = "${stale.texts.sparkStamp.slice(0, 160)}" — two brackets deep is where a reader stops parsing`
+    );
+    ok(
+      "the sparkline says which event its right-hand end is",
+      /最后|last/i.test(stale.texts.sparkStamp) && /\d{4}[-/]\d{2}[-/]\d{2}/.test(stale.texts.sparkStamp),
+      `#spark-stamp = "${stale.texts.sparkStamp.slice(0, 200)}" — the curve is frozen and had no timestamp`
+    );
+  }
+
+  /* ---- the counter-check: withholding must be CONDITIONAL ----
+   * The QUIET_WINDOW fixture has the snapshot only 3h old with its newest trim 30h back: the
+   * snapshot COVERS the 24h window and that window genuinely contains nothing. A real measured
+   * zero, and it must still render as one. Without this the fix could pass the assertions above
+   * by withholding every window, which would quietly make the whole panel useless. */
+  if (!quiet.missing) {
+    const tile24 = (() => {
+      const t = plain(quiet.texts.burnrate);
+      const i = t.indexOf("最近 24 小时烧毁");
+      return i >= 0 ? t.slice(i, i + 140) : t.slice(0, 140);
+    })();
+    ok(
+      "a COVERED window with no burns is still a measured zero, not withheld",
+      /0 IMD/.test(tile24) && !/取不到|unavailable/.test(tile24),
+      `"${tile24}" — the snapshot reaches back over this window and it really is empty; withholding it would be a different lie`
+    );
+    ok(
+      "a covered window still renders its coverable neighbours normally",
+      /最近 7 天烧毁/.test(plain(quiet.texts.burnrate)) && !/取不到|unavailable/.test(plain(quiet.texts.histStamp)),
+      `hist-stamp = "${quiet.texts.histStamp.slice(0, 160)}"`
+    );
+  }
+
+  /* ---- P1-1: the frozen half of the awaiting card ----
+   * The fixture's bridge-history.json is fetched 200 minutes ago — past the one-hour refresh
+   * cycle, and well under the 3h `STALE_AFTER_HOURS` threshold. That gap is the whole defect:
+   * the old predicate could not see a stall shorter than three hours. */
+  if (!stale.missing) {
+    ok(
+      "the awaiting card names the mixed clock when the frozen half is not in this refresh cycle",
+      /不属于同一次刷新|not from the same refresh/.test(stale.texts.awaitingNote),
+      `#awaiting-note = "${stale.texts.awaitingNote.slice(-400)}" — a 200-minute stall is invisible to mayNotBeLatest()`
+    );
+    ok(
+      "the frozen net tiles carry their own cutoff, not the page's refresh time",
+      /24 小时净变化/.test(plain(stale.texts.awaitingStats)) && /截至|as of|\d{4}[-/]\d{2}[-/]\d{2}/.test(plain(stale.texts.awaitingStats)),
+      `#awaiting-stats = "${plain(stale.texts.awaitingStats).slice(0, 300)}"`
+    );
+    /* The fix must not have reverted the TIMELINE-based predicate that renderStaleBanner's
+     * sibling wording depends on — the prompt for this round is explicit that
+     * `snapshotExpired()` reads timelineAgeHours() on purpose. */
+    const appSrc = readFileSync(ROOT + "assets/app.js", "utf8");
+    ok(
+      "snapshotExpired() still judges the timeline's own age, not the oldest source",
+      /const snapshotExpired = \(\) => \{\s*const age = timelineAgeHours\(\);/.test(appSrc),
+      "using state.snapshotAgeHours (the oldest of six) would let a stale unrelated base.json qualify a correct burn time"
+    );
+    ok(
+      "the awaiting card judges its frozen half by bridge-history's own fetchedAt",
+      /bridgeCutoff\(\)/.test(appSrc) && /FETCH_CYCLE_MINUTES/.test(appSrc),
+      "reusing mayNotBeLatest() here would answer a different question with the wrong file's age"
+    );
+  }
+  rmSync(staleDir, { recursive: true, force: true });
 }
 
 console.log(`\n${pass} passed, ${fail} failed`);

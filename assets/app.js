@@ -11,6 +11,7 @@ import { simulate as simulatePure, simulateHorizon, imdToWei } from "../lib/simu
 import { initI18n, setLang, getLang, t as tr, has as hasKey, onLangChange, applyStatic, applyDocumentLang, fmtDateTime, fmtIdentifier } from "../lib/i18n.js";
 import { oldestSnapshot, snapshotAges } from "../lib/snapshots.js";
 import { startMessageFollower, FIRST_WINDOW } from "../lib/messages-follow.js";
+import { CHUNK } from "../lib/messages-live.js";
 
 /* ------------------------------------------------------------------ *
  * config
@@ -21,6 +22,15 @@ const REFRESH_MS = 60_000;
 const BASE_EVERY = 5;
 /** Past this age, the historical sections are labelled as possibly out of date. */
 const STALE_AFTER_HOURS = 3;
+/** How often the refresh job rebuilds the snapshots — `refresh-snapshots.yml`, cron `0 * * * *`.
+ *
+ * Used as the "is this file still part of the current refresh cycle?" bound on the awaiting
+ * card's frozen half, and it is deliberately NOT `STALE_AFTER_HOURS`. The two thresholds answer
+ * different questions and were tuned separately: three hours is when the whole page should shout
+ * at the reader about stale history, and one hour is when a frozen figure has stopped belonging
+ * to this cycle. Reusing the banner's number here would leave a two-missed-runs stall reading as
+ * "as of now", which is the defect this constant exists to close. */
+const FETCH_CYCLE_MINUTES = 60;
 const LS_WATCH = "pool4.watch.v1";
 const LS_LOG = "pool4.watchlog.v1";
 const LS_FLIP = "pool4.stateflip.v1";
@@ -205,11 +215,130 @@ const snapshotBehindChain = () =>
     : false;
 const mayNotBeLatest = () => snapshotExpired() || snapshotBehindChain();
 const agoBounded = (tsSec) => (mayNotBeLatest() ? tr("stale.orMoreRecent", { p0: ago(tsSec) }) : ago(tsSec));
+
+/** `ago()`, bare — for the two sites that already state the cutoff in their own sentence.
+ *
+ * `agoBounded()`'s qualifier is a bracketed clause of its own ("{p0} or more recent (later burns
+ * are not in the snapshot)"). Dropped inside another parenthetical it nests two brackets deep —
+ * measured: "数据截至 X（30.0 小时前或更近（快照未含之后的烧毁））" — which is the point at which a
+ * reader stops parsing the sentence at all.
+ *
+ * This is NOT a weaker claim, and the distinction is worth spelling out because it looks like
+ * one. `s.549` and `s.550` each print `stale.asOf` immediately beside the age, and the sentence
+ * itself says the figures come from a frozen snapshot that a new burn will not appear in until
+ * the next refresh. That is the same upper-bound statement `agoBounded()` makes, made once in
+ * prose instead of twice in brackets. The conclusion band keeps `agoBounded()` because there
+ * the age stands alone with no cutoff beside it, so the qualifier has to carry the whole warning. */
+const agoPlain = (tsSec) => ago(tsSec);
+
+/* ------------------------------------------------------------------ *
+ * "when does this snapshot's data stop?"
+ *
+ * Three different questions on this page all need a cutoff, and they must not share one
+ * scalar — that mistake has already been made once (see timelineAgeHours() above, where
+ * the banner's "oldest of six" number was wrongly reused to judge one sentence).
+ *
+ *   snapshotCutoff()    the timeline's own build time   — for the frozen TRIM series
+ *   bridgeCutoff()      bridge-history.json's fetchedAt — for the frozen TRANSFER series
+ *   mayNotBeLatest()    "is this still the latest?"     — for the conclusion band's wording
+ *
+ * They are separate because the refresh job fails per step. Measured on 2026-09-25 the
+ * timeline was 0.1h old while bridge-history was 9.5h: a page that judged the burn tiles
+ * by the bridge file's age would call fresh data stale, and one that judged the bridge
+ * tiles by the timeline's age would call a nine-hour-old series current.
+ *
+ * `t` accepts either seconds or milliseconds, because the generators do not agree:
+ * the JSON snapshots write ISO strings (parsed → ms) while collect.mjs writes Date.now()
+ * directly. The same magnitude-vs-threshold bug that lib/snapshots.js documents would
+ * otherwise reappear here: multiplying a millisecond stamp by 1000 lands in the year
+ * 58701, and a future-dated cutoff would switch these branches off.
+ * ------------------------------------------------------------------ */
+
+/** Parse a snapshot timestamp that may be an ISO string, seconds, or milliseconds. */
+function parseStamp(v) {
+  const raw = typeof v === "string" ? (v ? Date.parse(v) : NaN) : typeof v === "number" && Number.isFinite(v) && v > 0 ? v : NaN;
+  // Below 1e12 a numeric epoch is seconds; at or above it, milliseconds (lib/snapshots.js).
+  return raw < 1e12 ? raw * 1000 : raw;
+}
+
+/** The timeline's build time in epoch ms — the moment the TRIM series stops at. */
+const timelineCutoff = () => {
+  const built = state.timeline && state.timeline.builtAt;
+  const ms = built === undefined ? NaN : parseStamp(built);
+  return Number.isFinite(ms) ? ms : null;
+};
+/** bridge-history.json's fetch time in epoch ms — the moment the frozen POINTS stop at. */
+const bridgeCutoff = () => {
+  const fetched = state.bridgeSnapshot && state.bridgeSnapshot.fetchedAt;
+  const ms = fetched === undefined ? NaN : parseStamp(fetched);
+  return Number.isFinite(ms) ? ms : null;
+};
+
 /** "data as of 2026-09-24 09:44 UTC" — attached to a frozen figure while it may not be latest. */
 const asOf = () =>
-  mayNotBeLatest() && state.timeline && state.timeline.builtAt
-    ? tr("stale.asOf", { p0: fmtDateTime(Date.parse(state.timeline.builtAt) / 1000) })
-    : "";
+  mayNotBeLatest() && timelineCutoff() !== null ? tr("stale.asOf", { p0: fmtDateTime(timelineCutoff() / 1000) }) : "";
+
+/* ------------------------------------------------------------------ *
+ * window coverage — a frozen series must never answer a question it cannot reach
+ *
+ * WHAT THIS EXISTS FOR
+ *
+ * renderBurnRate() computes its 24h/7d windows by filtering the frozen `timeline.trims`
+ * against a cutoff derived from the LIVE block timestamp. That is the same cross-epoch
+ * subtraction P1-1 fixes on the awaiting card, with a worse outcome: `trims` is a fixed
+ * list, so as the live clock advances the cutoff slides past every event the snapshot
+ * holds, the filter matches fewer and fewer rows, and the count decays to zero.
+ *
+ * The page then rendered the literal string "0 IMD" for a 24h window it could not read,
+ * which is exactly what this file forbids two screens up:
+ *
+ *     /** A number we could not read must never render as 0 — 0 is a claim. *\/
+ *
+ * And it is a specific, false claim, not a blank: "0 IMD burned in the last 24 hours" says
+ * the engine burned NOTHING, when what actually happened is that the snapshot predates the
+ * window entirely. Those are different statements and only one of them is true.
+ *
+ * WHY THE CUTOFF AND NOT THE COUNT
+ *
+ * Judging this by `count === 0` would be wrong in the other direction: a genuinely quiet
+ * 24 hours with a current snapshot is a real zero and must keep rendering as one. The
+ * question is not "did the filter match anything" but "COULD it have" — and that is a
+ * property of when the data stops, not of how many rows it happens to contain.
+ *
+ * `openEnded` covers a second real case: a snapshot with no readable timestamp cannot be
+ * shown to cover the window, so the figure is withheld with a different (and accurate)
+ * reason. Treating an unreadable stamp as "covered" would put the raw decay back.
+ * ------------------------------------------------------------------ */
+
+/**
+ * @param {number} windowStartSec  epoch seconds the window opens at (live clock)
+ * @param {number|null} cutoffMs   the frozen series' own cutoff in epoch ms
+ * @returns {boolean} true when the window reaches past what the snapshot covers
+ */
+const windowUncovered = (windowStartSec, cutoffMs) => {
+  if (cutoffMs === null) return true;
+  return cutoffMs / 1000 < windowStartSec;
+};
+
+/** The UNAVAILABLE tile for a window the snapshot cannot reach, naming where the data stops.
+ *
+ * The note is not decoration: `UNAVAILABLE` on its own leaves the reader unable to tell a dead
+ * RPC from a stale job from a genuinely empty pool, which is the entire reason this branch
+ * exists. `rowCount` is passed through so the sentence can be specific without printing the raw
+ * filter result as if it were a measurement (see s.547's note).
+ *
+ * `stale.asOf` cannot be reused as a bare clause here: it ALREADY begins with "data as of" /
+ * "数据截至", so the sentence has to introduce it, not prefix it again — measured, the first
+ * draft printed "数据截至 数据截至 2026/09/24 00:07 UTC". */
+const windowTile = (label, cutoffMs, rowCount) =>
+  statTile(label, UNAVAILABLE, {
+    small: true,
+    tone: "dim",
+    sub: tr("s.547", {
+      p0: rowCount,
+      p1: cutoffMs === null ? tr("stale.asOfNoTime") : tr("stale.asOf", { p0: fmtDateTime(cutoffMs / 1000) }),
+    }),
+  });
 /** "2026-09-24 09:44 UTC" — every timestamp on this page is UTC, and labelled as such.
  *
  * `new Date(NaN).toISOString()` throws `RangeError: Invalid time value`, and this formatter is
@@ -322,6 +451,12 @@ async function boot() {
   if (globalThis.__POOL4_FIXTURE__) {
     state.snap = globalThis.__POOL4_FIXTURE__;
     if (globalThis.__POOL4_TIMELINE__ !== undefined) state.timeline = globalThis.__POOL4_TIMELINE__;
+    /* The frozen transfer series, for the same reason as the timeline above. P1-1's predicate is
+     * "is bridge-history.json still in this refresh cycle?", and a fixture that could not set
+     * its fetchedAt would be forced to answer that question from whatever happens to be in
+     * data/bridge-history.json — i.e. the test would assert the checkout's freshness rather than
+     * the renderer's behaviour. Same dead-in-production contract as the other two globals. */
+    if (globalThis.__POOL4_BRIDGE__ !== undefined) state.bridgeSnapshot = globalThis.__POOL4_BRIDGE__;
     renderAll();
     return;
   }
@@ -695,12 +830,22 @@ function renderBurnRate() {
     return;
   }
   const nowSec = s.blockTimestamp;
+  const cutoffMs = timelineCutoff();
   const window = (hours) => {
     const cutoff = nowSec - hours * 3600;
     const rows = t.trims.filter((x) => x.t && x.t >= cutoff);
     const total = rows.reduce((a, x) => a + BigInt(x.burned), 0n);
     const rewards = rows.reduce((a, x) => a + BigInt(x.rewarded), 0n);
-    return { count: rows.length, total, rewards, perDay: rows.length ? (total * 86400n) / BigInt(hours * 3600) : 0n };
+    return {
+      count: rows.length,
+      total,
+      rewards,
+      perDay: rows.length ? (total * 86400n) / BigInt(hours * 3600) : 0n,
+      /* Does the snapshot reach back to the start of this window at all? When it does not,
+       * `count` is not a reading — it is an artefact of where the frozen list stops, and the
+       * tile must say so instead of printing the artefact as "0 IMD". See windowUncovered(). */
+      covered: !windowUncovered(cutoff, cutoffMs),
+    };
   };
   const h24 = window(24);
   const h168 = window(168);
@@ -720,12 +865,19 @@ function renderBurnRate() {
     if (dt > 60 && dv >= 0n) liveRate = (dv * 86400n) / BigInt(dt);
   }
 
+  /* `w.covered` is checked BEFORE `count`, and the order is the whole fix. The old expression
+   * was `w.count === 0 ? "0 IMD" : …` — it asked the frozen list how many rows it had instead
+   * of asking whether the window was answerable, so a window the snapshot does not reach was
+   * rendered as a measured zero. A covered window with no rows is still a real zero and still
+   * renders as one. */
   const row = (label, w, sub) =>
-    statTile(label, w.count === 0 ? "0 IMD" : fmt18(w.total, 3) + " IMD", {
-      small: true,
-      tone: w.count ? "live" : "",
-      sub: tr("s.033", { p0: w.count, p1: sub ? " · " + sub : "" }),
-    });
+    w.covered
+      ? statTile(label, w.count === 0 ? "0 IMD" : fmt18(w.total, 3) + " IMD", {
+          small: true,
+          tone: w.count ? "live" : "",
+          sub: tr("s.033", { p0: w.count, p1: sub ? " · " + sub : "" }),
+        })
+      : windowTile(label, cutoffMs, w.count);
 
   el.innerHTML =
     `<div class="grid g4">` +
@@ -774,13 +926,31 @@ function devTargetBlock(h24, h168) {
       tr("s.048"),
     ],
   ];
-  const actual = h24.perDay > 0n ? h24.perDay : h168.perDay;
+  /* The comparison is against the dev's 25k/day ceiling, so it inherits the window's coverage.
+   *
+   * The old one-liner was `actual = h24.perDay > 0n ? h24.perDay : h168.perDay`, which silently
+   * falls back to the 7-day rate whenever the 24h filter matched nothing. That fallback is right
+   * when the 24h window is genuinely quiet and the snapshot covers it — and wrong when the window
+   * slid off the snapshot, because then it displays the 7-day number under a 24h heading. Both
+   * the percentage AND its basis have to move together, so they are chosen together here.
+   *
+   * An uncovered 24h window with a COVERED 7d window is not hypothetical: the 168h window reaches
+   * back a week, so it survives a stall that the 24h window does not. It still gets the percentage
+   * — computed from the 7d rate, exactly as before — because that is what the page has always
+   * shown in that case; what it must not do is borrow a second window's rate and label it "today".
+   * So the comparison is withheld only when BOTH windows are out of reach. */
+  const basis = h24.covered ? h24 : h168.covered ? h168 : null;
+  const actual = basis === null ? 0n : basis.perDay;
   const pct = actual > 0n ? Number((actual * 10000n) / TARGET) / 100 : 0;
+  const progress =
+    basis === null
+      ? tr("s.548", { p0: timelineCutoff() === null ? tr("stale.asOfNoTime") : tr("stale.asOf", { p0: fmtDateTime(timelineCutoff() / 1000) }) })
+      : tr("s.050", { p0: pct >= 50 ? "warn" : "", p1: pct.toFixed(1) });
   return (
     `<div class="devtarget">` +
     `<div class="devtarget-head">` +
     tr("s.049") +
-    tr("s.050", { p0: pct >= 50 ? "warn" : "", p1: pct.toFixed(1) }) +
+    progress +
     `</div>` +
     `<p class="tiny muted" style="margin:6px 0 8px">` +
     tr("s.051") +
@@ -2007,6 +2177,56 @@ function renderAwaiting() {
    * apply to `const`, so reading it earlier throws a ReferenceError, and renderOne() would
    * turn that into a silently blank card rather than a loud failure. */
   const snapAt = snap && snap.fetchedAt ? iso(Math.floor(Date.parse(snap.fetchedAt) / 1000)) : null;
+
+  /* ------------------------------------------------------------------ *
+   * P1-1 — when the frozen half stops being a "now" figure
+   *
+   * The tiles below subtract a frozen sample point from a live balance. Two epochs, one
+   * number — the comment that used to sit above this function already admitted as much. What
+   * it did NOT admit was how narrow its own mitigation was: the tiles dimmed on
+   * `mayNotBeLatest()`, which is `snapshotExpired() || snapshotBehindChain()`, and
+   * `snapshotExpired()` needs the TIMELINE to be more than three hours old.
+   *
+   * So a refresh stall shorter than three hours was completely invisible. That is not a
+   * hypothetical: the job failed per-step for hours at a time, and the live page kept drawing
+   * `+1,234.56 IMD` in the same tone it uses for a current reading, with the frozen point
+   * seven hours old. The reader has no way to tell that number from a same-moment difference,
+   * and no way to know it is not one.
+   *
+   * WHY THE PREDICATE IS NOT `mayNotBeLatest()`
+   *
+   * Two reasons, and the second one is the important one.
+   *
+   * It answers a different question. `mayNotBeLatest()` asks "could the chain have burned since
+   * this photograph was taken?" — about the burn series, so it reads the timeline's age. This
+   * card's frozen half is not the burn series: it is `bridge-history.json`'s points, rebuilt
+   * from Transfer logs, and it carries its OWN fetchedAt. Judging it by the timeline's age is
+   * the same one-scalar-for-two-questions error that `timelineAgeHours()`'s comment documents
+   * a few hundred lines up. The two files are refreshed by separate steps and routinely have
+   * different ages — measured that day: timeline 0.1h, bridge-history 9.5h.
+   *
+   * And it is too coarse. The requirement is "not in the same refresh cycle", and the refresh
+   * cycle is one hour (`refresh-snapshots.yml`, cron `0 * * * *`). A 61-minute-old file is at
+   * the very edge — one missed run — and is exactly the state this card must not present as a
+   * same-moment subtraction. `FETCH_CYCLE_MINUTES` states that cycle rather than reusing the
+   * banner's three hours, which is tuned for "should the whole page shout", not for this.
+   *
+   * `snapshotBehindChain()` is deliberately NOT reused here either: it compares the live head
+   * against `timeline.last.Trimmed`, and the correctness of that comparison depends on which
+   * chain head the balance beside it was read from — see the RPC fallback in tick(), where a
+   * derived reading can come from the backup endpoint while the head is the primary's. There is
+   * only one load-bearing use of that guard today, and adding a second that can be wrong for a
+   * reason the first cannot would be a regression dressed as a re-use.
+   * ------------------------------------------------------------------ */
+  const bridgeFetchedMs = bridgeCutoff();
+  const frozenNotCurrent =
+    bridgeFetchedMs === null || (Date.now() - bridgeFetchedMs) / 60000 > FETCH_CYCLE_MINUTES;
+  /* The note's sentence has to name WHICH moment the frozen half belongs to, and the tiles
+   * already print it — so the two are built from one value rather than formatted twice. */
+  const frozenAtLabel = snapAt || tr("awaiting.frozenNoTime");
+  const mixedClock = frozenNotCurrent
+    ? " " + tr("awaiting.mixedClockSameCycle", { p0: frozenAtLabel })
+    : "";
   const toBig = (v) => {
     try {
       return v === null || v === undefined ? null : BigInt(v);
@@ -2049,22 +2269,26 @@ function renderAwaiting() {
     }) +
       /* The net tiles get the snapshot's timestamp as their sub, not the page's refresh time:
        * these two numbers are the frozen half of the card and the only place a reader can see
-       * which moment they belong to. `awaiting.snapshotAt` reuses the existing key (it is the
-       * same sentence the note prints) rather than minting a near-duplicate. */
+       * which moment they belong to. `awaiting.frozenAsOf` reuses the existing key (it is the
+       * same sentence the note prints) rather than minting a near-duplicate.
+       *
+       * `frozenNotCurrent`, not `mayNotBeLatest()` — see the long note above. The dimming is
+       * the visible half of the fix; the sentence in the note is the half that actually says
+       * what is mixed, because a dimmed tile is still a "+1,234.56 IMD" to anyone glancing. */
       statTile(tr("awaiting.net24"), net(trend && trend.net24), {
         small: true,
-        sub: snapAt ? tr("awaiting.frozenAsOf", { p0: snapAt }) : tr("awaiting.frozenNoTime"),
-        tone: mayNotBeLatest() ? "dim" : "",
+        sub: frozenAtLabel,
+        tone: frozenNotCurrent ? "dim" : "",
       }) +
       statTile(tr("awaiting.net7d"), net(trend && trend.net7d), {
         small: true,
-        sub: snapAt ? tr("awaiting.frozenAsOf", { p0: snapAt }) : tr("awaiting.frozenNoTime"),
-        tone: mayNotBeLatest() ? "dim" : "",
+        sub: frozenAtLabel,
+        tone: frozenNotCurrent ? "dim" : "",
       }) +
       statTile(tr("awaiting.whoPushes"), `<span class="chip ${chip}">${esc(label)}</span>`, {
         small: true,
-        sub: snapAt ? tr("awaiting.frozenAsOf", { p0: snapAt }) : tr("awaiting.frozenNoTime"),
-        tone: mayNotBeLatest() ? "dim" : "",
+        sub: frozenAtLabel,
+        tone: frozenNotCurrent ? "dim" : "",
       })
   );
 
@@ -2095,9 +2319,14 @@ function renderAwaiting() {
    * Rather than pick one clock and lose the other (a stale series would then read as flat, and
    * a live-only reading would lose the trend entirely), each half is labelled with its own
    * cutoff above: the frozen tiles carry the snapshot's timestamp, the note carries the
-   * series' own fetchedAt, and this line states the mix in words. */
+   * series' own fetchedAt, and this line states the mix in words.
+   *
+   * `seriesAt` is kept as the note's own reading of the same stamp the tiles use. It agrees with
+   * `frozenAtLabel` by construction (both are `snap.fetchedAt`), and is left separate rather
+   * than folded into it because the note must stay correct if the tiles' presentation changes:
+   * `frozenAtLabel` falls back to a locale string, and a note that silently inherited that
+   * fallback would print "as of snapshot time unavailable" inside a sentence about a moment. */
   const seriesAt = snap && snap.fetchedAt ? iso(Math.floor(Date.parse(snap.fetchedAt) / 1000)) : null;
-  const mixedClock = seriesAt ? " " + tr("awaiting.mixedClock", { p0: seriesAt }) : "";
   /* The last real move of the second door, so the card is not blind to an event the sample
    * series cannot contain.
    *
@@ -2697,6 +2926,38 @@ const msgView = () => (state.messagesLive && state.messagesLive.messages.length 
  * the mempool cannot be read by any eth_getBlockByNumber; every sentence below says what was read
  * and names a cutoff.
  */
+/**
+ * Which data the message list is showing, stated plainly beside it.
+ *
+ * A page that mixes a live feed with a pre-generated file has to say which is which. This project's
+ * existing rule (`stale.asOf`, `awaiting.frozenAsOf`, `mayNotBeLatest()`) is that labelling staleness
+ * always beats manufacturing freshness, and the message section needs that more than anywhere else:
+ * a list that silently swaps its source is worse than one that never updates, because trust is what is
+ * being spent.
+ *
+ * THE RULE THAT MATTERS MOST HERE: an absence is a claim about an INTERVAL.
+ *
+ * "There is no message newer than the snapshot" is a statement about every block between the snapshot's
+ * newest message and the chain head. That interval is large and grows all day — 14,406 blocks, ~48
+ * hours, when this was written — while the first read covers FIRST_WINDOW of it (300 blocks, 2%). The
+ * original version of this function made the claim anyway. A reader who had just watched someone post
+ * was told, in effect, that nothing had been posted: the report that started this work.
+ *
+ * So there are three states below, not two, and the difference between the last two is exactly whether
+ * `coverageComplete` is set — which comes from messageCoverage() in lib/messages-live.js and is
+ * computed there ONCE, so this label cannot drift from the condition it depends on:
+ *
+ *   liveIsAhead          a message newer than the snapshot WAS found  → state it, with its block
+ *   live + not complete  nothing found YET, interval not fully read   → "no new message yet", and say so
+ *   live + complete      nothing found, interval FULLY read           → "no message newer", and say how much was checked
+ *
+ * The middle state is the one that must never be allowed to render as the last: "we have not finished
+ * looking" and "there is nothing" look identical on screen if both just show the old list.
+ *
+ * Never claims second-level realtime either. Only MINED transactions are visible, so a message still in
+ * the mempool cannot be read by any eth_getBlockByNumber; each sentence says what was read and names a
+ * cutoff.
+ */
 function messageSourceNote() {
   const st = state.messagesStatus;
   const snapAt = state.messages && state.messages.fetchedAt ? fmtDateTime(Date.parse(state.messages.fetchedAt) / 1000) : null;
@@ -2704,10 +2965,11 @@ function messageSourceNote() {
   /* A block number, or null when there is genuinely none.
    *
    * NEVER `Number(x).toLocaleString()` on a possibly-null value: `Number(null)` is 0, not NaN, so an
-   * unwritten block number renders as the confidently wrong "block 0" instead of being absent. The
-   * first attempt at this label printed "已读到区块 0" for exactly that reason, and a reader has no way
-   * to tell that from a real reading. */
-  const blockLabel = live.liveHead === null || live.liveHead === undefined ? null : Number(live.liveHead).toLocaleString();
+   * unwritten block number renders as the confidently wrong "block 0" instead of being absent. An
+   * earlier revision printed "已读到区块 0" for exactly that reason, and a reader has no way to tell that
+   * from a real reading. */
+  const num = (v) => (v === null || v === undefined ? null : Number(v).toLocaleString());
+  const blockLabel = num(live.liveHead);
 
   if (!st || st.phase === "idle") {
     return snapAt ? tr("msg.srcSnapshot", { p0: snapAt }) : tr("msg.srcSnapshotNoTime");
@@ -2715,16 +2977,32 @@ function messageSourceNote() {
   if (st.phase === "error" || st.phase === "stopped") {
     return snapAt ? tr("msg.srcFailed", { p0: snapAt }) : tr("msg.srcFailedNoTime");
   }
+
   /* phase === "live" */
+
+  /* A positive answer outranks everything else: if a newer message was found, the page has something to
+   * show and no absence to hedge. Checked first for that reason. */
   if (live.liveIsAhead && live.newestTs && blockLabel) {
     return tr("msg.srcLiveNew", { p0: fmtDateTime(live.newestTs), p1: blockLabel });
   }
-  if (blockLabel) {
-    /* The chain was read and held nothing newer. Saying so is the honest answer AND a useful one: it
-     * tells the reader the page IS current and the channel is simply quiet — the opposite conclusion
-     * from "the page is broken", which a stale-looking timestamp would otherwise invite. */
-    return tr("msg.srcLiveSame", { p0: snapAt || "", p1: blockLabel });
+
+  /* Nothing found. Whether that may be stated as an absence depends ENTIRELY on coverage. */
+  if (blockLabel && live.coverageComplete === true) {
+    const checked = num(live.snapshotNewestBlock !== null && live.snapshotNewestBlock !== undefined ? live.liveHead - live.snapshotNewestBlock : null);
+    return tr("msg.srcLiveSame", { p0: snapAt || "", p1: blockLabel }) + (checked ? tr("msg.srcBackfillDone", { p0: checked }) : "");
   }
+
+  /* Still walking back towards the snapshot. This is where the original bug lived, so the wording is
+   * deliberately weaker than "没有": it reports a range and an ongoing action, never an absence. */
+  if (blockLabel) {
+    const readSoFar = num(live.lowestRead !== null && live.lowestRead !== undefined ? live.liveHead - live.lowestRead + 1 : null);
+    const stillToGo = num(live.uncoveredBlocks);
+    if (readSoFar && stillToGo) {
+      return tr("msg.srcLivePartial", { p0: readSoFar, p1: blockLabel, p2: stillToGo });
+    }
+    return tr("msg.srcLivePartialNoNum");
+  }
+
   return snapAt ? tr("msg.srcSnapshot", { p0: snapAt }) : tr("msg.srcSnapshotNoTime");
 }
 
@@ -2813,6 +3091,11 @@ function renderMessages() {
   const readBlocks = st.readBlocks != null ? Number(st.readBlocks).toLocaleString() : "—";
   const windowBlocks = Number(FIRST_WINDOW).toLocaleString();
   const batchCalls = st.batchCalls != null ? String(st.batchCalls) : "—";
+  /* `s.544` now has five placeholders: requests, first-window size, batch size, blocks read this
+   * session, and the snapshot's own build time. The batch and window figures are read from the modules
+   * rather than written into the sentence, because they were written into it before and went stale the
+   * moment CHUNK was retuned from 100 to 25 — a details block that states a wrong number is worse than
+   * one that states none. */
   setHtml(
     "messages-tech",
     /* The old text described the Blockscout crawl alone and ended with "this is a pre-generated
@@ -2823,7 +3106,14 @@ function renderMessages() {
     tr("s.541") +
       tr("s.542") +
       tr("s.543") +
-      tr("s.544", { p0: readBlocks, p1: windowBlocks, p2: batchCalls, p3: new Date(data.fetchedAt).toISOString().replace("T", " ").slice(0, 19) }) +
+      tr("s.544", {
+        p0: batchCalls,
+        p1: windowBlocks,
+        p2: Number(CHUNK).toLocaleString(),
+        p3: readBlocks,
+        p4: new Date(data.fetchedAt).toISOString().replace("T", " ").slice(0, 19),
+      }) +
+      messageCoverageLine() +
       tr("s.413", { p0: data.counts.txs, p1: data.counts.decoded, p2: data.counts.undecodable }) +
       tr("s.414", { p0: data.devAddresses.map((a) => `<code>${esc(a)}</code>`).join(tr("s.382")) }) +
       tr("s.415", { p0: esc(data.address) }) +
@@ -2831,6 +3121,30 @@ function renderMessages() {
       tr("s.546") +
       tr("s.545")
   );
+}
+
+/**
+ * One line reporting how much of the gap has actually been covered.
+ *
+ * The message section makes a claim about an interval, and this is where the reader can check its
+ * scope. Without it the only evidence available to a reader is the sentence in the lede, which is
+ * exactly the kind of self-report this project keeps getting wrong: the mechanism runs, the report
+ * succeeds, and nothing independent confirms the range.
+ *
+ * Deliberately prints the interval's two ends — the snapshot's newest block and the lowest block read —
+ * so the claim "nothing in between" can be checked against numbers rather than trusted.
+ */
+function messageCoverageLine() {
+  const live = state.messagesLiveFresh || {};
+  const st = state.messagesStatus || {};
+  if (live.snapshotNewestBlock == null || live.lowestRead == null) return "";
+  const snap = Number(live.snapshotNewestBlock).toLocaleString();
+  const low = Number(live.lowestRead).toLocaleString();
+  if (live.coverageComplete === true) {
+    return tr("msg.techCovered", { p0: snap, p1: low });
+  }
+  const left = st.uncoveredBlocks != null ? Number(st.uncoveredBlocks).toLocaleString() : "—";
+  return tr("msg.techUncovered", { p0: snap, p1: low, p2: left });
 }
 
 function renderMessageBody(m, expanded) {
@@ -3037,6 +3351,29 @@ function renderHistory() {
   $("hist-count").textContent = String(trims.length + settles.length);
   $("hist-range").textContent = `${t.scannedFrom.toLocaleString()} – ${t.scannedTo.toLocaleString()}`;
 
+  /* The three parts below — the count, the range and the sparkline — are all read straight out
+   * of the frozen `timeline.trims`, and none of them carried a timestamp. Unlike the burn-rate
+   * tiles they cannot decay to a false zero: the list is frozen, so the totals stay put and the
+   * page just looks current while the event list stops growing.
+   *
+   * That is the subtler half of the same defect, and it is the one a reader is more likely to be
+   * fooled by — a number that quietly stops moving is indistinguishable on screen from a pool
+   * that has quietly stopped burning. So every one of them gets the cutoff attached, and the
+   * sparkline gets labelled with the last event it actually contains. This is labelling, not
+   * withholding: the figures are real, they just belong to a stated moment.
+   *
+   * The age is computed from the same `emitSec` the burn-rate tiles use, so the two sections
+   * cannot disagree about how old the timeline is. */
+  const cutMs = timelineCutoff();
+  const emitSec = cutMs === null ? null : Math.floor(cutMs / 1000);
+  setHtml(
+    "hist-stamp",
+    tr("s.549", {
+      p0: emitSec === null ? tr("stale.asOfNoTime") : tr("stale.asOf", { p0: fmtDateTime(emitSec) }),
+      p1: emitSec === null ? UNAVAILABLE : agoPlain(emitSec),
+    })
+  );
+
   // sparkline: burned per event, log-ish scaling for visibility
   const W = 800;
   const H = 90;
@@ -3059,6 +3396,19 @@ function renderHistory() {
       })
       .join("");
     $("spark").innerHTML = bars;
+    /* The curve's own right-hand end is its newest event, and that is the one number which
+     * tells a reader whether "flat at the end" means "quiet" or "the data stops here". It is
+     * printed with `agoBounded()` rather than `ago()` for the same reason the conclusion band
+     * uses it: the newest event in a frozen list is an upper bound, and "7h ago or more recent"
+     * is true where "7h ago" may not be. */
+    const lastEvent = series[series.length - 1];
+    setHtml(
+      "spark-stamp",
+      tr("s.550", {
+        p0: iso(lastEvent.t),
+        p1: agoPlain(lastEvent.t),
+      })
+    );
   }
 
   const totalBurned = trims.reduce((a, x) => a + BigInt(x.burned), 0n) + settles.reduce((a, x) => a + BigInt(x.burned), 0n);

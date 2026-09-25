@@ -545,17 +545,27 @@ details > div { padding-top: 8px; }
    * a bar lays out 11.6px wide with a 297px scrollWidth, so 24 bars demanded ~456px and pushed
    * the document to scrollWidth 489 against clientWidth 390.
    *
-   * `min-width: 0` is the actual fix: it releases the automatic minimum so the bars really are
-   * the 2px floor. The `overflow: hidden` is belt-and-braces — it also caps the *scrollable*
-   * width contributed by that absolutely positioned tooltip, so the strip can never widen the
-   * page again even if a future tooltip grows.
+   * `min-width: 0` releases the automatic minimum so the flex algorithm stops asking what the
+   * bar's content wants. But it is not sufficient on its own here, and that is the whole
+   * difficulty of this rule — measured, not reasoned:
    *
-   * A plain `overflow-x: hidden` on `.actbars` alone would have hidden the symptom while
-   * leaving the layout 132px too wide (the mistyped `overflow` that used to sit on
-   * `.gauge-track`/`.gapbar .track` did nothing for exactly this reason — see the note there).
-   * Adding a horizontal scrollbar was the other tempting fix; it is wrong here, because the
-   * strip's whole point is to show the *shape* of the last 24 burns at a glance. */
-  flex: 1 1 0; min-width: 0; min-height: 2px; overflow: hidden;
+   *   min-width: 0 alone                    -> 390px viewport, scrollWidth 492   (24 bars still
+   *                                            demand ~11.6px each: 24 x 11.6 = 278px)
+   *   min-width: 0 + overflow: hidden       -> scrollWidth 390, BUT the tooltip is gone
+   *
+   * `overflow: hidden` "fixed" the width by clipping the bar's own ::after child out of
+   * existence. The bar has no text content, so the clip looked free; it was not. A reader
+   * reported it exactly: "I hover the chart and it no longer tells me the amount or the time."
+   *
+   * `contain: layout` is the value that separates the two. It tells the engine this element's
+   * subtree cannot affect the layout OUTSIDE it — so the nowrap tooltip stops contributing to
+   * the strip's intrinsic width — while leaving paint alone, so the tooltip still escapes the
+   * bar and is still visible on hover.
+   *
+   * Verified both ways at 390px: scrollWidth === clientWidth, AND computed overflow on the bar
+   * is `visible` with the ::after content intact. Removing `contain: layout` re-breaks the width;
+   * swapping it for `overflow: hidden` re-breaks the tooltip. */
+  flex: 1 1 0; min-width: 0; min-height: 2px; contain: layout;
   background: var(--dead); opacity: .75; border-radius: 2px 2px 0 0;
 }
 /* The tooltip is a hover readout, so on a touch-first screen it never appears — and an

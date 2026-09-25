@@ -856,7 +856,7 @@
   "s.541": "<b>Data source:</b>",
   "s.542": "The list above is read by this page <b>directly from Ethereum</b> (read-only, no backend):",
   "s.543": "<code>eth_getBlockByNumber(tag, true)</code> returns each block's transactions, which are then filtered to the message board. A message is a transaction's <code>input</code>: plain-text calldata decoded as UTF-8 after stripping <code>0x</code>. A plain transfer with empty calldata is not a message.",
-  "s.544": "The board is a plain address (EOA) and <b>emits no logs</b>, so <code>eth_getLogs</code> returns nothing for it — reading transactions block by block is the only way.<br>The live read covers the last <b>{p0}</b> blocks: <b>{p1}</b> on first paint (<b>{p2}</b> batched requests of 100 blocks each), then only new blocks every 30 seconds. Older history comes from the pre-generated snapshot (built {p3} UTC).",
+  "s.544": "The board is a plain address (EOA) and <b>emits no logs</b>, so <code>eth_getLogs</code> returns nothing for it — reading transactions block by block is the only way.<br>First paint reads the last <b>{p1}</b> blocks (in batches of <b>{p2}</b>, <b>{p0}</b> requests), then only new blocks every 30 seconds; meanwhile it <b>walks backwards in the background</b> until it covers the block of the snapshot's newest message. Until that finishes, the page says \"no new message yet\" rather than \"there is none\".<br>This session has read <b>{p3}</b> blocks. Older history comes from the pre-generated snapshot (built {p4} UTC).",
   "s.545": "<br>A read-only method whitelist is enforced statically by <code>scripts/check.mjs</code>: this page never makes, and cannot make, a write transaction.",
   "s.546": "<br><b>Note</b>: only <b>mined</b> messages are visible. A transaction still in the mempool cannot be read by any node — that is a physical limit, not a page fault.",
   "stale.bannerPartial": "<b>Some of the history may be out of date.</b> <b>{p0} of {p1}</b> monitored history files are stale (the oldest was built {p4} ago): {p2}{p3}. <b>The other files are still refreshing, so the page looks current — those are not.</b>",
@@ -870,5 +870,15 @@
   "msg.srcLiveNew": " <span class=\"tiny muted\">· <b>includes the newest on-chain message</b> ({p0}, read to block {p1})</span>",
   "msg.srcLiveSame": " <span class=\"tiny muted\">· read the chain to block {p1}; <b>no message newer than the snapshot</b> (snapshot built {p0})</span>",
   "msg.srcFailed": " <span class=\"tiny muted\">· <b>live chain read unavailable</b>; showing the snapshot (built {p0})</span>",
-  "msg.srcFailedNoTime": " <span class=\"tiny muted\">· <b>live chain read unavailable</b>; showing the snapshot</span>"
+  "msg.srcFailedNoTime": " <span class=\"tiny muted\">· <b>live chain read unavailable</b>; showing the snapshot</span>",
+  "s.547": "The snapshot does not reach back over this window: {p1}, which is before this window opens, so how many trims fall inside it cannot be read from this snapshot at all ({p0} of them survive in the timeline). This is not “nothing burned”; it is “cannot be read”.",
+  "s.548": "<span class=\"chip\">cannot be compared: {p0}</span>",
+  "s.549": "<b>What these figures cover</b>: the counts, totals and combined figure above come from a frozen timeline snapshot — {p0}, about {p1}. They do not move as time passes: a burn that lands on-chain right now appears here only after the next refresh.",
+  "s.550": "Last point on the curve: {p0}, about {p1} — the right-hand end stops here, and that does not mean the pool stopped burning.",
+  "awaiting.mixedClockSameCycle": "This card mixes two moments that are not from the same refresh: the “current” tile is this moment’s on-chain balance, while the 24h/7d net change subtracts a sampled point ({p0}). The job rebuilds that series once an hour, so when the two disagree the honest reading is “what changed between then and here” — not a net change as of now.",
+  "msg.srcLivePartial": " <span class=\"tiny muted\">· read the last {p0} blocks (to block {p1}), <b>no new message yet</b>; still reading back over the remaining {p2} blocks…</span>",
+  "msg.srcLivePartialNoNum": " <span class=\"tiny muted\">· reading earlier blocks, <b>no new message yet</b>…</span>",
+  "msg.srcBackfillDone": " <span class=\"tiny muted\">(checked all {p0} blocks between the snapshot and the chain head)</span>",
+  "msg.techCovered": "<br><b>Coverage</b>: the snapshot's newest message is at block {p0} and the walk has reached down to block {p1} — <b>every block in between has been read</b>, so \"no message newer than the snapshot\" is a checked statement.",
+  "msg.techUncovered": "<br><b>Coverage</b>: the snapshot's newest message is at block {p0}; the walk has reached block {p1}, with <b>{p2} blocks still unread</b> — which is why the page says \"no new message yet\" rather than \"there is none\". The walk continues in the background."
 }

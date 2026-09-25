@@ -14,10 +14,13 @@ import {
   scanMessages,
   mergeMessages,
   messageFreshness,
+  messageCoverage,
   nextWindow,
+  backfillNext,
   MESSAGE_ADDRESS,
   FIRST_WINDOW,
   CHUNK,
+  BACKFILL_SEGMENT,
 } from "../lib/messages-live.js";
 
 const ROOT = fileURLToPath(new URL("..", import.meta.url));
@@ -448,6 +451,131 @@ console.log("\nmessageFreshness: no invented freshness");
   const numeric = messageFreshness({ merged: { messages: [] }, snapshot: { builtAt: 1700000000000, messages: [] }, liveHead: null, liveReadAt: null });
   ok("a numeric (ms) snapshot timestamp is accepted without a second parser", numeric.snapshotAsOf === 1700000000000, String(numeric.snapshotAsOf));
 }
+
+/* ------------------------------------------------------------------ *
+ * 7. messageCoverage — is "nothing newer" a claim the page has EARNED?
+ *
+ * This is the section that exists because of a real report: the page said "no message newer than the
+ * snapshot" after reading 300 blocks of a 14,406-block gap (2%). The claim is about an INTERVAL, so it
+ * may only be made when the interval has been read. Every case below is one of the ways that can be
+ * false.
+ * ------------------------------------------------------------------ */
+console.log("\nmessageCoverage: an absence claim needs the whole interval");
+{
+  const SNAP = 26038179; // the real snapshot's newest message block
+  const HEAD = 26052585; // a real head, 14,406 blocks later
+
+  /* THE BUG. Read the top 300 blocks and nothing else: 2% of the interval. This MUST NOT be "complete". */
+  const shallow = messageCoverage({ snapshotNewestBlock: SNAP, lowestRead: HEAD - 299, head: HEAD, covered: true });
+  ok("reading only the top 300 blocks of a 14,406-block gap is NOT complete", shallow.complete === false, JSON.stringify(shallow));
+  eq("and it reports how much is unread", shallow.missing, HEAD - 299 - (SNAP + 1));
+  eq("with a reason that names the cause", shallow.reason, "partial");
+  ok("the unread count is the bulk of the interval, not a rounding error", shallow.missing > 14000, String(shallow.missing));
+
+  /* Reading exactly down to the snapshot's newest block closes it. */
+  const exact = messageCoverage({ snapshotNewestBlock: SNAP, lowestRead: SNAP + 1, head: HEAD, covered: true });
+  ok("reading down to the snapshot's newest block IS complete", exact.complete === true, JSON.stringify(exact));
+  eq("nothing is missing", exact.missing, 0);
+  eq("the interval starts just after the snapshot", exact.gapFrom, SNAP + 1);
+
+  /* Overlapping the snapshot is also complete — reading past the floor is fine. */
+  const past = messageCoverage({ snapshotNewestBlock: SNAP, lowestRead: SNAP - 500, head: HEAD, covered: true });
+  ok("reading past the snapshot's newest block is complete too", past.complete === true, JSON.stringify(past));
+
+  /* One block short is not complete. Off-by-one here is the difference between an assertion and a guess. */
+  const oneShort = messageCoverage({ snapshotNewestBlock: SNAP, lowestRead: SNAP + 2, head: HEAD, covered: true });
+  ok("being ONE block short is not complete", oneShort.complete === false && oneShort.missing === 1, JSON.stringify(oneShort));
+
+  /* Holes: reaching the right depth does not help if the range was not actually read.
+   *
+   * This case used to pass `covered: false`, which the function no longer takes — coverage is
+   * derived from the `missed` ranges, because a boolean cannot say WHICH blocks were missed and
+   * the caller needs that to size the uncertainty. Passing an argument nobody reads made the
+   * assertion fail for a reason unrelated to holes; it now describes an actual hole. */
+  const holed = messageCoverage({ snapshotNewestBlock: SNAP, lowestRead: SNAP + 1, head: HEAD, missed: [{ from: SNAP + 40, to: SNAP + 60 }] });
+  ok("a read with holes is not complete even at full depth", holed.complete === false, JSON.stringify(holed));
+  eq("and says why", holed.reason, "holes");
+
+  /* A hole ABOVE the lowest read block is the case the follow-level bug produced: the walk moves
+   * past an unreachable stretch to reach ground below it, so `lowestRead` ends up UNDER the hole.
+   * Clipping holes to [gapFrom, lowestRead-1] then emptied the range and the function answered
+   * "fully-read" for an interval containing a stretch nobody had read. */
+  const holeAbove = messageCoverage({ snapshotNewestBlock: SNAP, lowestRead: SNAP + 1, head: HEAD, missed: [{ from: SNAP + 200, to: SNAP + 260 }] });
+  ok("a hole ABOVE the lowest read block still counts", holeAbove.complete === false && holeAbove.missing >= 61, JSON.stringify(holeAbove));
+  eq("...and is reported as holes, not as full coverage", holeAbove.reason, "holes");
+
+  /* The snapshot is ahead of what was read: there is no uncovered interval at all. */
+  const snapAhead = messageCoverage({ snapshotNewestBlock: SNAP, lowestRead: SNAP + 100, head: SNAP - 50, covered: true });
+  ok("a snapshot ahead of the read has no uncovered interval", snapAhead.complete === true, JSON.stringify(snapAhead));
+  eq("with its own reason", snapAhead.reason, "snapshot-ahead");
+
+  /* Nothing read / nothing to compare against: never complete. */
+  eq("no snapshot block means not complete", messageCoverage({ snapshotNewestBlock: null, lowestRead: 100, head: 200 }).complete, false);
+  eq("nothing read yet means not complete", messageCoverage({ snapshotNewestBlock: SNAP, lowestRead: null, head: HEAD }).complete, false);
+  eq("that case has no interval to report", messageCoverage({ snapshotNewestBlock: SNAP, lowestRead: null, head: HEAD }).missing, null);
+}
+
+/* ------------------------------------------------------------------ *
+ * 8. messageFreshness carries the coverage verdict (one definition, not two)
+ * ------------------------------------------------------------------ */
+console.log("\nmessageFreshness carries coverage so the label cannot drift from it");
+{
+  const snapshot = { fetchedAt: "2026-09-24T19:11:13.998Z", messages: [{ block: 26038179, ts: 1790142311, source: "snapshot" }] };
+  const merged = { messages: [{ block: 26038179, ts: 1790142311, source: "snapshot" }] };
+
+  /* The exact shape of the reported bug: high head, shallow read, nothing found. */
+  const bug = messageFreshness({ merged, snapshot, liveHead: 26052585, liveReadAt: 1, lowestRead: 26052585 - 299, readCovered: true, now: 1 });
+  ok("a shallow read is reported as NOT complete", bug.coverageComplete === false, JSON.stringify(bug.coverage));
+  ok("and the unread count is carried for the label to print", bug.uncoveredBlocks > 14000, String(bug.uncoveredBlocks));
+
+  const done = messageFreshness({ merged, snapshot, liveHead: 26052585, liveReadAt: 1, lowestRead: 26038180, readCovered: true, now: 1 });
+  ok("a full walk is reported as complete", done.coverageComplete === true, JSON.stringify(done.coverage));
+  eq("with nothing unread", done.uncoveredBlocks, 0);
+
+  /* Old callers that pass no lowestRead get the safe answer: not complete. */
+  const legacy = messageFreshness({ merged, snapshot, liveHead: 26052585, liveReadAt: 1 });
+  ok("omitting lowestRead defaults to NOT complete (fail safe, not fail open)", legacy.coverageComplete === false, JSON.stringify(legacy.coverage));
+}
+
+/* ------------------------------------------------------------------ *
+ * 9. backfillNext — walking the gap downwards without overshooting
+ * ------------------------------------------------------------------ */
+console.log("\nbackfillNext: walking down to the snapshot floor");
+{
+  const seg = backfillNext({ upper: 26052586, floor: 26038179, segment: 600 });
+  eq("the first segment sits directly below the upper bound", [seg.from, seg.to], [26051986, 26052585]);
+  eq("its size is the segment size", seg.to - seg.from + 1, 600);
+
+  /* The last segment is CLAMPED to the floor rather than running past it — overshooting would re-read
+   * blocks the snapshot already covers and, worse, would make `lowestRead` claim coverage of blocks the
+   * snapshot is the authority on. */
+  const last = backfillNext({ upper: 26038400, floor: 26038179, segment: 600 });
+  eq("the final segment is clamped to the floor", last.from, 26038179);
+  ok("so it is shorter than a full segment", last.to - last.from + 1 < 600, String(last.to - last.from + 1));
+  eq("and it ends right below the upper bound", last.to, 26038399);
+
+  eq("once the upper bound reaches the floor there is nothing left", backfillNext({ upper: 26038179, floor: 26038179, segment: 600 }), null);
+  eq("an upper bound below the floor also stops", backfillNext({ upper: 26038000, floor: 26038179, segment: 600 }), null);
+  eq("missing numbers stop rather than produce NaN", backfillNext({ upper: null, floor: 26038179 }), null);
+  eq("a missing floor stops too", backfillNext({ upper: 100, floor: undefined }), null);
+
+  /* Walking repeated segments must reach the floor in a bounded number of steps and never loop. */
+  let upper = 26052586;
+  let steps = 0;
+  let lowest = null;
+  while (steps < 100) {
+    const s = backfillNext({ upper, floor: 26038179, segment: BACKFILL_SEGMENT });
+    if (!s) break;
+    lowest = s.from;
+    upper = s.from;
+    steps++;
+  }
+  ok("the walk terminates well under the step limit", steps < 100, `${steps} steps`);
+  eq("and lands exactly on the floor", lowest, 26038179);
+  const expected = Math.ceil((26052586 - 26038179) / BACKFILL_SEGMENT);
+  eq("in the expected number of segments", steps, expected);
+}
+
 
 console.log(`\n${pass} passed, ${fail} failed`);
 process.exit(fail === 0 ? 0 : 1);

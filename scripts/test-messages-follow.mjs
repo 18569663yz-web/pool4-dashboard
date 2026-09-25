@@ -305,5 +305,123 @@ console.log("\ndegenerate inputs do not throw");
   f2.stop();
 }
 
+/* ------------------------------------------------------------------ */
+console.log("\nBACKFILL: the page must walk down to the snapshot before claiming an absence");
+{
+  /* The reported bug, reproduced as a state machine.
+   *
+   * head 100000, snapshot's newest message at block 90000 — a 10,000-block uncovered gap. The first
+   * read covers the top 300. Before this fix the follower stopped there and the page said "no message
+   * newer than the snapshot", which is an assertion about 10,000 blocks backed by 300 of them. */
+  const snapshot = { fetchedAt: "2026-09-24T19:11:13.998Z", messages: [{ block: 90000, ts: 1700000000, tx: "0xs", from: DEV, to: BOARD, selfSend: true, isDev: true, important: null, text: "snapshot msg" }] };
+  const h = harness({ head: 100000 });
+  const f = await startAndSettle(h, stateWith(snapshot));
+
+  const first = h.updates[h.updates.length - 1].freshness;
+  ok("after the FIRST read the interval is NOT covered", first.coverageComplete === false, JSON.stringify(first.coverage));
+  /* The exact figure depends on how many backfill bursts the startup tick managed to fit (startAndSettle
+   * drains until requests stop, so it may already be past one burst). What must hold is that the unread
+   * count is the bulk of the gap — the first read is 300 blocks of a 10,001-block interval, so anything
+   * near 300 would mean the gap is being mis-measured. */
+  ok(`the unread count is the bulk of the gap (${first.uncoveredBlocks} of ~10000)`, first.uncoveredBlocks > 7000, String(first.uncoveredBlocks));
+  ok("and it is far more than the first window actually read", first.uncoveredBlocks > 300 * 10, String(first.uncoveredBlocks));
+
+  /* Now let the backfill run: each tick spends a burst of segments after its incremental poll. */
+  let guard = 0;
+  while (guard++ < 60) {
+    const before = f.status().lowestRead;
+    await f.tickOnce();
+    if (f.status().coverageComplete) break;
+    if (f.status().lowestRead === before && guard > 5) break;
+  }
+  const done = h.updates[h.updates.length - 1].freshness;
+  ok(`the backfill reached the snapshot's block and coverage became complete (after ${guard} ticks)`, f.status().coverageComplete === true, JSON.stringify(f.status().freshness.coverage));
+  eq("the lowest block read is at the snapshot's newest block", f.status().lowestRead, 90000);
+  eq("nothing is left unread", f.status().uncoveredBlocks, 0);
+  eq("the status stops advertising a backfill", f.status().backfilling, false);
+
+  /* The whole interval must actually have been REQUESTED — a watermark that advances without reads is
+   * the same lie in a new place. */
+  const read = new Set(h.ticks.flat());
+  const gap = [];
+  for (let b = 90000; b <= 100000; b++) gap.push(b);
+  const unread = gap.filter((b) => !read.has(b));
+  ok(`every block in the gap was requested (${gap.length - unread.length}/${gap.length})`, unread.length === 0, `first unread: ${unread.slice(0, 5).join(", ")}`);
+
+  /* And the message the snapshot did not have, sitting inside the gap, must have been found. */
+  const h2 = harness({ head: 100000, msgAt: { 95000: "posted between the snapshot and the head" } });
+  const f2 = await startAndSettle(h2, stateWith(snapshot));
+  let g2 = 0;
+  while (g2++ < 60 && !f2.status().coverageComplete) await f2.tickOnce();
+  const merged2 = h2.updates[h2.updates.length - 1].merged;
+  ok("THE MESSAGE INSIDE THE GAP IS FOUND BY THE BACKFILL", merged2.messages.some((m) => m.block === 95000), JSON.stringify(merged2.messages.map((m) => m.block)));
+  ok("and the page now reports the chain as ahead", h2.updates[h2.updates.length - 1].freshness.liveIsAhead === true);
+  f.stop();
+  f2.stop();
+}
+
+/* ------------------------------------------------------------------ */
+console.log("\nBACKFILL: the incremental poll is never starved by history");
+{
+  /* A new message posted near the head must be reported even while a long backfill is still running.
+   * If the walk ran first, or unbounded, the reader would wait minutes for the thing they opened the
+   * page to see. */
+  const snapshot = { fetchedAt: "2026-09-24T19:11:13.998Z", messages: [{ block: 90000, ts: 1700000000, tx: "0xs", from: DEV, to: BOARD, selfSend: true, isDev: true, important: null, text: "snapshot msg" }] };
+  const h = harness({ head: 100000 });
+  const f = await startAndSettle(h, stateWith(snapshot));
+  ok("the first read has not closed the gap yet", f.status().coverageComplete === false);
+
+  /* Someone posts at the very top while the history walk is still going. */
+  h.head = 100020;
+  h.msgAt[100015] = "posted just now";
+  h.mark();
+  await f.tickOnce();
+  const merged = h.updates[h.updates.length - 1].merged;
+  ok("a message posted at the head is found on the very next tick", merged.messages.some((m) => m.block === 100015), JSON.stringify(merged.messages.map((m) => m.block)));
+  ok("even though the backfill is still incomplete", f.status().coverageComplete === false);
+  ok("the head read is the FIRST thing the tick did", h.window().some((b) => b === 100020 - 4 || b === 100019), `first blocks: ${h.window().slice(0, 6).join(",")}`);
+  f.stop();
+}
+
+/* ------------------------------------------------------------------ */
+console.log("\nBACKFILL: an unreachable segment does not wedge the walk");
+{
+  /* If one segment never answers, the walk must still be able to reach the rest — otherwise a single
+   * bad stretch freezes coverage for ever and the page can never make its claim. The gap that failed
+   * is reported as uncovered, which is the honest outcome. */
+  const snapshot = { fetchedAt: "2026-09-24T19:11:13.998Z", messages: [{ block: 90000, ts: 1700000000, tx: "0xs", from: DEV, to: BOARD, selfSend: true, isDev: true, important: null, text: "snapshot msg" }] };
+  const h = harness({ head: 100000 });
+  /* Blocks 96000-96599 are unreachable, in every form. */
+  const inner = h.rpc.batch;
+  h.rpc.batch = async (reqs) => {
+    const n = parseInt(reqs[0].params[0], 16);
+    if (n >= 96000 && n < 96600) throw new Error("that stretch is gone");
+    return inner(reqs);
+  };
+  const f = await startAndSettle(h, stateWith(snapshot));
+  let g = 0;
+  while (g++ < 60) {
+    await f.tickOnce();
+    if (f.status().uncoveredBlocks === 0) break;
+  }
+  ok("the walk did not stay stuck on the unreachable segment", f.status().lowestRead < 96000, `lowestRead ${f.status().lowestRead}`);
+  ok("the failed stretch is reported, not silently skipped", f.status().backfillFailures > 0, String(f.status().backfillFailures));
+  ok("and the page still refuses to claim completeness", f.status().coverageComplete === false, JSON.stringify(f.status().freshness.coverage));
+  f.stop();
+}
+
+/* ------------------------------------------------------------------ */
+console.log("\nBACKFILL: no snapshot means no known interval, so no walk");
+{
+  /* Without a snapshot there is no floor, and walking to block 1 would read the whole chain to answer
+   * a question nobody asked. The follower must simply not start. */
+  const h = harness({ head: 100000 });
+  const f = await startAndSettle(h, stateWith(null));
+  const before = f.status().readBlocks;
+  await f.tickOnce();
+  ok("no backfill is attempted without a snapshot to bound it", f.status().lowestRead === null || f.status().readBlocks - before < 1000, `lowestRead ${f.status().lowestRead}, read ${f.status().readBlocks - before}`);
+  f.stop();
+}
+
 console.log(`\n${pass} passed, ${fail} failed`);
 process.exit(fail === 0 ? 0 : 1);
