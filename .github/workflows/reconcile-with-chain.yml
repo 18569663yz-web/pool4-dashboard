@@ -47,6 +47,7 @@ jobs:
       # Public endpoints differ in behaviour between a laptop and a runner; POOL4_RPC_URLS
       # redirects every script without touching the defaults that local runs use.
       - name: Reconcile the committed snapshots against the chain
+        timeout-minutes: 15
         env:
           POOL4_RPC_URLS: ${{ vars.POOL4_RPC_URLS }}
         run: node scripts/check-live-numbers.mjs

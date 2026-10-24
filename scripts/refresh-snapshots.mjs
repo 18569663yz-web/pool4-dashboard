@@ -144,16 +144,37 @@ console.log(`staging: ${staging}\n`);
  * "ConnectTimeoutError ... eth.blockscout.com". A warning that cannot be acted on is only
  * marginally better than no warning.
  */
+/**
+ * Per-step wall-clock ceiling. A generator that hangs is indistinguishable from one that is
+ * working, and without this the only thing that notices is the job timeout — after the job has
+ * already spent its whole hour. Measured on 2026-10-24: index ~2m, build-data ~5m, volume ~6m,
+ * fetch-messages 40m+ with no progress. 10 minutes is generous against everything that works and
+ * still lets the retry below run inside the job's budget.
+ */
+const STEP_TIMEOUT_MS = Number(argOf("--step-timeout", "600")) * 1000;
+
 const run = (script, args) =>
   new Promise((resolve) => {
     const child = spawn(process.execPath, [join(ROOT, "scripts", script), ...args], { cwd: ROOT, stdio: ["ignore", "inherit", "pipe"] });
     let tail = "";
+    let settled = false;
+    let timer;
+    const finish = (code, extra = "") => {
+      if (settled) return;
+      settled = true;
+      if (timer) clearTimeout(timer);
+      resolve({ code, tail: (tail + extra).slice(-4000) });
+    };
     child.stderr.on("data", (chunk) => {
       process.stderr.write(chunk);
       tail = (tail + chunk.toString()).slice(-4000);
     });
-    child.on("close", (code) => resolve({ code: code ?? 1, tail }));
-    child.on("error", (e) => resolve({ code: 1, tail: String(e.message) }));
+    child.on("close", (code) => finish(code ?? 1));
+    child.on("error", (e) => finish(1, String(e.message)));
+    timer = setTimeout(() => {
+      child.kill("SIGKILL");
+      finish(124, `\n[timed out after ${STEP_TIMEOUT_MS / 1000}s — killed]`);
+    }, STEP_TIMEOUT_MS);
   });
 
 const sleep = (ms) => new Promise((r) => setTimeout(r, ms));

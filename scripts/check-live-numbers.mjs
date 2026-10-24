@@ -7,7 +7,20 @@
 // every test was green, because no test ever asked the chain.
 //
 //   node scripts/check-live-numbers.mjs              # reconcile, exit non-zero on mismatch
-//   node scripts/check-live-numbers.mjs --tolerance 30   # allow 30s of drift before failing
+//   node scripts/check-live-numbers.mjs --tolerance-blocks 60000   # allow more blocks of lag
+//   node scripts/check-live-numbers.mjs --stale-warn-hours 12      # when lateness turns yellow
+//   node scripts/check-live-numbers.mjs --stale-fail-hours 36      # when lateness means stopped
+//
+// WHAT IS A FAILURE, AND WHAT IS ONLY A WARNING. Exit non-zero for a REAL disagreement between
+// the page and the chain: a counter that went backwards, an address that changed, a ledger larger
+// than totalBurned(), a snapshot with no readable timestamp, a file that has produced nothing for
+// 36 hours. A snapshot that is merely LATE is a warning, not a failure. GitHub throttles
+// scheduled workflows on public repositories — measured over the last 40 scheduled runs on
+// 2026-10-24, an hourly cron actually fired 2–8 hours apart — so a hard "3 hours old" assertion
+// was a red build on most days by construction, while the snapshots themselves were fine. That is
+// the difference between "the data is wrong" (this script's job) and "the data is late" (the
+// page's own banner, and refresh-snapshots.mjs's ::warning::). Conflating the two is how a daily
+// red build stops meaning anything.
 //
 // It is deliberately READ-ONLY and needs no browser: it reads the chain and it reads the
 // committed snapshots, and it reports the gap between them. `verify-live-site.mjs` covers the
@@ -30,6 +43,7 @@ const argOf = (name, fallback) => {
 
 let pass = 0;
 let fail = 0;
+let warned = 0;
 const ok = (label, cond, detail = "") => {
   if (cond) {
     pass++;
@@ -39,6 +53,33 @@ const ok = (label, cond, detail = "") => {
     console.log(`  FAIL ${label}${detail ? `\n       ${detail}` : ""}`);
   }
 };
+/* A warning is a fact the run should report but that must not turn it red.
+ *
+ * Freshness is the only class of check that uses it, and the reason is scheduling, not
+ * correctness. GitHub throttles scheduled workflows on public repositories: measured over the
+ * last 40 scheduled runs on 2026-10-24, a workflow configured hourly actually fired 2–8 hours
+ * apart, so a hard "3 hours old" assertion was a red build on most days by construction — while
+ * the snapshots themselves were fine. The page already tells the reader when a snapshot is late;
+ * this script exists to tell them when the DATA IS WRONG. Lateness is a warning; disagreement is
+ * a failure; abandonment (nothing produced for a day and a half) is a failure too. */
+const warn = (label, cond, detail = "") => {
+  if (cond) {
+    pass++;
+    console.log(`  ok   ${label}`);
+    return;
+  }
+  warned++;
+  console.log(`  WARN ${label}${detail ? `\n       ${detail}` : ""}`);
+  if (process.env.GITHUB_ACTIONS) {
+    console.log(`::warning title=stale snapshot::${label.replace(/\r?\n/g, " ")} — ${String(detail).replace(/\r?\n/g, " ")}`);
+  }
+};
+
+/* Late, not broken: matches the cadence the scheduler actually delivers, not the one configured.
+ * 12h leaves room for two dropped hourly ticks in a row plus a retry. */
+const STALE_WARN_HOURS = Number(argOf("--stale-warn-hours", "12"));
+/* Stopped, not late: refresh would have landed at least three times even when throttled. */
+const ABANDONED_AFTER_HOURS = Number(argOf("--stale-fail-hours", "36"));
 const load = (f) => {
   try {
     return JSON.parse(readFileSync(ROOT + `data/${f}`, "utf8"));
@@ -124,7 +165,8 @@ if (!baseline) {
   const age = (Date.now() - baseline.fetchedAt) / 3_600_000;
   console.log(`  baseline fetched ${new Date(baseline.fetchedAt).toISOString()} (${age.toFixed(2)}h ago), block ${baseline.blockNumber}, head now ${snap.blockNumber}`);
 
-  ok("baseline.json is not older than the refresh window (3h)", age < 3, `${age.toFixed(2)}h old — the hourly job has stopped`);
+  warn(`baseline.json is not older than the refresh window (${STALE_WARN_HOURS}h)`, age < STALE_WARN_HOURS, `${age.toFixed(2)}h old — the refresh job is running late (GitHub throttles hourly schedules on public repos to 2–8h; see the workflow comment)`);
+  ok(`baseline.json is not abandoned (age ${age.toFixed(2)}h < ${ABANDONED_AFTER_HOURS}h)`, age < ABANDONED_AFTER_HOURS, `${age.toFixed(2)}h old — the refresh job has stopped producing baseline.json altogether`);
   ok("baseline.json's block is not ahead of the chain", baseline.blockNumber <= snap.blockNumber, `baseline block ${baseline.blockNumber} > head ${snap.blockNumber}`);
 
   // Monotonic counters: these can only grow, whatever the block.
@@ -185,9 +227,14 @@ if (bridge) {
      * the page must say WHICH moment each number belongs to. Here the assertion is only that the
      * file's own "now" is not wildly different from the chain's — a big gap means the file has
      * stopped tracking the queue at all. */
+    /* 100%, not 50%: the queue is a queue, and one real bridge drains it by half in the hours a
+     * throttled refresh takes (measured 2026-10-24: 195.02 -> 16.01 IMD between two snapshots).
+     * The assertion is that the file still tracks the queue at all, not that the queue held
+     * still; whether a three-hour-old reading is acceptable is the freshness checks' question,
+     * not this one's. */
     const diff = fileNow > quote ? fileNow - quote : quote - fileNow;
     const rel = quote > 0n ? Number((diff * 1_000_000n) / quote) / 1_000_000 : Number(diff) / 1e18;
-    ok(`bridge-history's "now" still tracks the live queue (${(rel * 100).toFixed(2)}% apart, tolerance 50%)`, rel < 0.5, `file ${fmt18(fileNow, 6)} vs chain ${fmt18(quote, 6)}`);
+    ok(`bridge-history's "now" still tracks the live queue (${(rel * 100).toFixed(2)}% apart, tolerance 100%)`, rel < 1.0, `file ${fmt18(fileNow, 6)} vs chain ${fmt18(quote, 6)}`);
   } else {
     ok('bridge-history has a "now" point', false, `${(bridge.points || []).length} points`);
   }
@@ -233,7 +280,6 @@ if (base) {
  * ------------------------------------------------------------------ */
 console.log("\nfreshness of every snapshot the page reads");
 {
-  const STALE_AFTER_HOURS = 3;
   /* Exactly the six the page fetches in boot(), plus baseline.json which the same job commits.
    *
    * messages.zh.json is deliberately NOT here, and the reason is worth stating because the naive
@@ -273,23 +319,31 @@ console.log("\nfreshness of every snapshot the page reads");
   }
 
   for (const a of ages.sort((x, y) => y.ageHours - x.ageHours)) {
-    console.log(`  ${a.name.padEnd(16)} ${new Date(a.at).toISOString()}  ${a.ageHours.toFixed(2)}h${a.ageHours > STALE_AFTER_HOURS ? "   <-- STALE" : ""}`);
+    console.log(`  ${a.name.padEnd(16)} ${new Date(a.at).toISOString()}  ${a.ageHours.toFixed(2)}h${a.ageHours > STALE_WARN_HOURS ? "   <-- LATE" : ""}`);
   }
 
   /* One assertion per source, named, so a failure says WHICH file stopped rather than "something
    * is old". A caller reading a CI log needs the file name, not a count. */
   for (const a of ages) {
+    /* Two levels, because two different problems wear the same face. "Late" is what a public
+     * repository gets from GitHub's scheduler most days; "stopped" is what this whole script
+     * exists to catch. Only the second is allowed to fail the run. */
+    warn(
+      `data/${a.file} was refreshed within ${STALE_WARN_HOURS}h (age ${a.ageHours.toFixed(2)}h)`,
+      a.ageHours < STALE_WARN_HOURS,
+      `${a.file} is ${a.ageHours.toFixed(2)}h old — the refresh job has not produced it yet. If it is an optional step, its output keeps the previous contents and the page says so with a banner.`
+    );
     ok(
-      `data/${a.file} was refreshed within ${STALE_AFTER_HOURS}h (age ${a.ageHours.toFixed(2)}h)`,
-      a.ageHours < STALE_AFTER_HOURS,
-      `${a.file} is ${a.ageHours.toFixed(2)}h old — that step of the refresh job has stopped producing. If it is an optional step, its output keeps the previous contents and only this check will notice.`
+      `data/${a.file} is not abandoned (age ${a.ageHours.toFixed(2)}h < ${ABANDONED_AFTER_HOURS}h)`,
+      a.ageHours < ABANDONED_AFTER_HOURS,
+      `${a.file} is ${a.ageHours.toFixed(2)}h old — the refresh job has stopped producing it altogether, not merely late.`
     );
   }
 
   /* The summary the banner is built from, asserted the same way the page computes it: a partial
    * outage is the shape that hides, because a fresh majority makes the page look trustworthy. */
-  const staleNames = ages.filter((a) => a.ageHours > STALE_AFTER_HOURS).map((a) => a.name);
-  console.log(`\n  ${staleNames.length} of ${ages.length} snapshots are past the ${STALE_AFTER_HOURS}h threshold${staleNames.length ? ": " + staleNames.join(", ") : ""}`);
+  const staleNames = ages.filter((a) => a.ageHours > STALE_WARN_HOURS).map((a) => a.name);
+  console.log(`\n  ${staleNames.length} of ${ages.length} snapshots are past the ${STALE_WARN_HOURS}h threshold${staleNames.length ? ": " + staleNames.join(", ") : ""}`);
   if (staleNames.length) {
     console.log(`  (a PARTIAL stall: ${ages.length - staleNames.length} source(s) are still current, which is exactly why the page can look healthy)`);
   }
@@ -305,6 +359,6 @@ console.log("    fleet serves only intermittently; this run compares the ledger 
 console.log("  · data/history.json (7 MB) row by row against data/timeline.json");
 console.log("  · Base-side BurnExecuted completeness (the log scan is rate-limited)");
 
-console.log(`\n${pass} passed, ${fail} failed`);
+console.log(`\n${pass} passed, ${fail} failed, ${warned} warning(s)`);
 await new Promise((resolve) => process.stdout.write("", resolve));
 process.exit(fail === 0 ? 0 : 1);
