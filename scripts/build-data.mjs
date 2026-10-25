@@ -391,6 +391,31 @@ if (fixture) {
      * the page states the bridge count as a fact, and a quiet 62 → 61 reads as history. */
     throw new Error(`L1 bridge scan incomplete (${scan.failures.length}/${scan.windows} windows failed)`);
   }
+
+  /* Carry over every bridge the previous file already had and this scan did not reproduce.
+   *
+   * The scan reports a window that never answered, but it cannot report a window that answered
+   * with an empty array — and public endpoints do hand back `[]` for a range they have pruned or
+   * are simply not serving, without an error. Measured on 2026-10-25: two consecutive CI runs
+   * scanned the same fixed range and reported 70, then 67, events, with zero failed windows and
+   * zero retries. verify-snapshots.mjs then refused to promote a base.json whose bridge count had
+   * shrunk, so the whole refresh went red for a day.
+   *
+   * A bridge event that was on chain yesterday is not gone today: it is an immutable log. So the
+   * reader wants the union, not "what this particular run managed to see". Carrying the previous
+   * events forward makes the file monotone — a missed window costs a re-read next run instead of
+   * a red build — while a genuinely new event still arrives through the scan. */
+  const previousBridges = prevBaseJson().bridges || [];
+  if (previousBridges.length) {
+    const seenTx = new Set(bridgeLogs.map((l) => String(l.transactionHash).toLowerCase()));
+    const carried = previousBridges.filter((b) => b.tx && !seenTx.has(String(b.tx).toLowerCase()));
+    if (carried.length) {
+      console.log(`  carrying over ${carried.length} bridge event(s) the scan did not reproduce`);
+      bridgeLogs = bridgeLogs.concat(
+        carried.map((b) => ({ blockNumber: hx(b.b), transactionHash: b.tx, __carried: true }))
+      );
+    }
+  }
 }
 console.log(`  L1 TokensBridgedForBurn events: ${bridgeLogs.length}`);
 const bridgeBlocks = [...new Set(bridgeLogs.map((b) => parseInt(b.blockNumber, 16)))].sort((a, b) => a - b);
