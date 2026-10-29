@@ -1,31 +1,31 @@
 {
-  "scannedAt": "2026-10-28T21:06:29.162Z",
+  "scannedAt": "2026-10-29T00:57:26.322Z",
   "hours": 24,
-  "fromBlock": 26286612,
-  "toBlock": 26293812,
-  "chainWideSwaps": 116496,
-  "totalEthAbs": "129564514159125805230",
-  "totalSwaps": 290,
-  "hookShareEthPct": 3.52,
-  "hookShareCountPct": 23.79310344827586,
+  "fromBlock": 26287761,
+  "toBlock": 26294961,
+  "chainWideSwaps": 113836,
+  "totalEthAbs": "130062696749750837135",
+  "totalSwaps": 315,
+  "hookShareEthPct": 3.48,
+  "hookShareCountPct": 22.22222222222222,
   "pools": [
     {
       "id": "0xb07d640fd9e2eb9dc81b953c8e4fd006bdfeaf276010fb5418eb763ca15abfb3",
       "label": "A",
-      "swaps": 221,
-      "ethAbs": "125001605089082995551",
-      "imdAbs": "63253642091051219644256",
-      "netEth": "25157481037932907795",
-      "netImd": "-12947454695730955503384"
+      "swaps": 245,
+      "ethAbs": "125529996138411978557",
+      "imdAbs": "63896727730940377292828",
+      "netEth": "18457983099477903937",
+      "netImd": "-9789439169653829373780"
     },
     {
       "id": "0x415829f72e9f54531c26eae76f107618540e898a45d6ae35959e143f5faca704",
       "label": "B",
-      "swaps": 69,
-      "ethAbs": "4562909070042809679",
-      "imdAbs": "2321685414223621196453",
-      "netEth": "1012207284279806191",
-      "netImd": "-514434782881226906613"
+      "swaps": 70,
+      "ethAbs": "4532700611338858578",
+      "imdAbs": "2318421508573315305552",
+      "netEth": "716090536688184148",
+      "netImd": "-375201325754474463204"
     }
   ],
   "poolIds": {
